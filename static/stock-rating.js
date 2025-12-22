@@ -12,6 +12,7 @@
    * @returns {Array} 包含评分信息的股票数组
    */
   function calculateRating(stocks) {
+    console.log(stocks);
     return stocks.map((stock) => {
       let rating = 0;
 

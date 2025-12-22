@@ -6,6 +6,7 @@
 
 import json
 import os
+from urllib.parse import urlparse, parse_qs
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from .. import config
@@ -176,6 +177,135 @@ class StockAPIHandler:
             raise Exception(f"获取股票基本面数据失败: {str(e)}")
     
     @staticmethod
+    def get_stock_fs_data(stock_codes: list, metrics_list: list, date: str) -> Dict[str, Any]:
+        """
+        功能：获取指定股票的财报数据
+        
+        Args:
+            stock_codes: 股票代码列表
+            metrics_list: 指标列表
+            date: 日期字符串
+        
+        Returns:
+            包含股票财报数据的字典
+        """
+        payload = {
+            "token": config.TOKEN,
+            "stockCodes": stock_codes,
+            "metricsList": metrics_list,
+            "date": date
+        }
+        
+        log_message(f"接口一：获取指定股票财报数据 - 股票={stock_codes}, 指标={metrics_list}, 日期={date}")
+        
+        try:
+            response_data = fundamental_fetcher.request_api(config.HK_FS_URL, payload)
+            result = json.loads(response_data)
+            
+            # 检查理杏仁API返回的错误
+            # 如果响应中有data字段，说明是成功响应（即使有message字段也是成功的）
+            # 只有当没有data字段，但有error或message字段时，才是错误
+            if 'data' not in result:
+                error_msg = None
+                if 'error' in result:
+                    error_value = result.get('error')
+                    # 只有当error字段存在且值不是"success"时才是错误
+                    if error_value and str(error_value).lower() != 'success':
+                        error_msg = str(error_value)
+                elif 'message' in result:
+                    message_value = result.get('message')
+                    if message_value and str(message_value).lower() != 'success':
+                        error_msg = str(message_value)
+                
+                if error_msg:
+                    api_error = Exception(f"理杏仁API错误: {error_msg}")
+                    api_error.api_error_message = error_msg
+                    raise api_error
+            
+            # 为每个股票添加 stockName 字段
+            stock_name_mapping = StockAPIHandler._get_stock_name_mapping()
+            stocks_data = result.get('data', [])
+            for stock in stocks_data:
+                stock_code = stock.get('stockCode')
+                if stock_code and stock_code in stock_name_mapping:
+                    stock['stockName'] = stock_name_mapping[stock_code]
+                elif not stock.get('stockName'):
+                    stock['stockName'] = stock_code or ''
+            
+            return result
+        except Exception as e:
+            log_message(f"获取股票财报数据失败: {e}")
+            # 如果异常包含理杏仁API的错误信息，保留它
+            if hasattr(e, 'api_error_message'):
+                raise
+            # 否则包装成通用错误
+            raise Exception(f"获取股票财报数据失败: {str(e)}")
+    
+    @staticmethod
+    def get_stock_data(stock_codes: list, metrics_list: Dict[str, list], date: str) -> Dict[str, Any]:
+        """
+        功能：获取指定股票的数据（支持基本面数据和财报数据）
+        
+        Args:
+            stock_codes: 股票代码列表
+            metrics_list: 指标列表对象，格式为 {fundamental: [...], fs: [...]}
+            date: 日期字符串
+        
+        Returns:
+            包含股票数据的字典，格式为 {fundamental: {...}, fs: {...}}
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        fundamental_metrics = metrics_list.get('fundamental', [])
+        fs_metrics = metrics_list.get('fs', [])
+        
+        # 检查至少有一个非空的指标列表
+        has_fundamental = fundamental_metrics and isinstance(fundamental_metrics, list) and len(fundamental_metrics) > 0
+        has_fs = fs_metrics and isinstance(fs_metrics, list) and len(fs_metrics) > 0
+        
+        if not has_fundamental and not has_fs:
+            raise ValueError("fundamental 和 fs 至少需要提供一个非空数组")
+        
+        result = {}
+        
+        # 并行请求基本面数据和财报数据
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = {}
+            
+            # 提交基本面数据请求
+            if has_fundamental:
+                future_fundamental = executor.submit(
+                    StockAPIHandler.get_stock_fundamentals,
+                    stock_codes,
+                    fundamental_metrics,
+                    date
+                )
+                futures['fundamental'] = future_fundamental
+            
+            # 提交财报数据请求
+            if has_fs:
+                future_fs = executor.submit(
+                    StockAPIHandler.get_stock_fs_data,
+                    stock_codes,
+                    fs_metrics,
+                    date
+                )
+                futures['fs'] = future_fs
+            
+            # 收集结果
+            for key, future in futures.items():
+                try:
+                    result[key] = future.result()
+                except Exception as e:
+                    log_message(f"获取{key}数据失败: {e}")
+                    # 如果异常包含理杏仁API的错误信息，保留它
+                    if hasattr(e, 'api_error_message'):
+                        raise
+                    raise Exception(f"获取{key}数据失败: {str(e)}")
+        
+        return result
+    
+    @staticmethod
     def filter_stocks_by_metrics(metrics_filter: Dict[str, list], date: str, metrics_list: Optional[list] = None) -> Dict[str, Any]:
         """
         功能：根据基本面条件筛选股票
@@ -268,14 +398,46 @@ class StockAPIHandler:
                     send_error_response(400, "stockCodes 必须是非空数组", request_handler)
                     return True
                 
-                metrics_list = request_params.get('metricsList', [])
-                if not metrics_list or not isinstance(metrics_list, list):
-                    send_error_response(400, "metricsList 必须是非空数组", request_handler)
+                metrics_list_param = request_params.get('metricsList', [])
+                date = request_params.get('date', get_current_date())
+                
+                # 处理metricsList格式：支持数组（向后兼容）和对象（新格式）
+                metrics_list_obj = None
+                if isinstance(metrics_list_param, list):
+                    # 数组格式（向后兼容）：转换为对象格式
+                    if not metrics_list_param:
+                        send_error_response(400, "metricsList 必须是非空数组或对象", request_handler)
+                        return True
+                    metrics_list_obj = {
+                        'fundamental': metrics_list_param,
+                        'fs': []
+                    }
+                elif isinstance(metrics_list_param, dict):
+                    # 对象格式（新格式）
+                    fundamental_metrics = metrics_list_param.get('fundamental', [])
+                    fs_metrics = metrics_list_param.get('fs', [])
+                    
+                    # 验证格式
+                    if not isinstance(fundamental_metrics, list) or not isinstance(fs_metrics, list):
+                        send_error_response(400, "metricsList.fundamental 和 metricsList.fs 必须是数组", request_handler)
+                        return True
+                    
+                    # 至少需要一个非空数组
+                    if (not fundamental_metrics or len(fundamental_metrics) == 0) and \
+                       (not fs_metrics or len(fs_metrics) == 0):
+                        send_error_response(400, "metricsList.fundamental 和 metricsList.fs 至少需要提供一个非空数组", request_handler)
+                        return True
+                    
+                    metrics_list_obj = {
+                        'fundamental': fundamental_metrics if fundamental_metrics else [],
+                        'fs': fs_metrics if fs_metrics else []
+                    }
+                else:
+                    send_error_response(400, "metricsList 必须是数组或对象", request_handler)
                     return True
                 
-                date = request_params.get('date', get_current_date())
                 try:
-                    result = StockAPIHandler.get_stock_fundamentals(stock_codes, metrics_list, date)
+                    result = StockAPIHandler.get_stock_data(stock_codes, metrics_list_obj, date)
                     send_json_response(result, request_handler)
                 except Exception as e:
                     # 如果异常包含理杏仁API的错误信息，直接返回给前端
@@ -284,7 +446,7 @@ class StockAPIHandler:
                         log_message(f"理杏仁API返回错误: {error_msg}")
                         send_error_response(400, error_msg, request_handler)
                     else:
-                        log_message(f"获取股票基本面数据失败: {e}")
+                        log_message(f"获取股票数据失败: {e}")
                         send_error_response(500, f"Internal Server Error: {str(e)}", request_handler)
                 return True
 
@@ -304,12 +466,18 @@ class StockAPIHandler:
             # 接口三：保存筛选项配置
             elif 'filterConfig' in request_params:
                 filter_config_data = request_params.get('filterConfig')
+                config_type = request_params.get('type', 'fundamental')  # 默认为fundamental，向后兼容
+                
                 if not isinstance(filter_config_data, list):
                     send_error_response(400, "filterConfig 必须是数组", request_handler)
                     return True
                 
-                filter_config.FilterConfigManager.save_filter_config(filter_config_data)
-                send_json_response({"success": True, "message": "配置已保存"}, request_handler)
+                if config_type not in ['fundamental', 'fs']:
+                    send_error_response(400, "type 必须是 'fundamental' 或 'fs'", request_handler)
+                    return True
+                
+                filter_config.FilterConfigManager.save_filter_config(filter_config_data, config_type)
+                send_json_response({"success": True, "message": f"{config_type}配置已保存"}, request_handler)
                 return True
             
             else:
@@ -339,8 +507,13 @@ class StockAPIHandler:
         """
         try:
             # 获取筛选项配置接口
-            if path == '/api/filter-config':
-                result = filter_config.FilterConfigManager.get_filter_config()
+            if path.startswith('/api/filter-config'):
+                # 解析查询参数
+                parsed_url = urlparse(path)
+                query_params = parse_qs(parsed_url.query)
+                config_type = query_params.get('type', [None])[0]  # 获取type参数
+                
+                result = filter_config.FilterConfigManager.get_filter_config(config_type)
                 send_json_response(result, request_handler)
                 return True
             

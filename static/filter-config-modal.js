@@ -12,10 +12,10 @@
   let addFilterFieldBtn = null;
   let saveConfigBtn = null;
   let cancelConfigBtn = null;
-  let openBtn = null;
   let testApiBtn = null;
   let apiTestResult = null;
   let apiTestResultContent = null;
+  let modalTitle = null;
 
   // 当前编辑的筛选项配置（临时状态）
   let currentConfig = [];
@@ -23,20 +23,23 @@
   // 正在编辑的行索引（-1 表示没有正在编辑的行）
   let editingIndex = -1;
 
+  // 配置类型：'fundamental' 或 'fs'
+  let configType = "fundamental";
+
   /**
    * 初始化弹窗模块
    */
   function init() {
-    // 获取元素引用
+    // 获取元素引用（共用同一个弹窗）
     modal = document.getElementById("filterConfigModal");
     filterFieldsList = document.getElementById("filterFieldsList");
     addFilterFieldBtn = document.getElementById("addFilterFieldBtn");
     saveConfigBtn = document.getElementById("saveConfigBtn");
     cancelConfigBtn = document.getElementById("cancelConfigBtn");
-    openBtn = document.getElementById("fundamentalFilterSettingBtn");
     testApiBtn = document.getElementById("testApiBtn");
     apiTestResult = document.getElementById("apiTestResult");
     apiTestResultContent = document.getElementById("apiTestResultContent");
+    modalTitle = document.getElementById("filterConfigModalTitle");
 
     if (
       !modal ||
@@ -44,21 +47,40 @@
       !addFilterFieldBtn ||
       !saveConfigBtn ||
       !cancelConfigBtn ||
-      !openBtn ||
       !testApiBtn ||
       !apiTestResult ||
-      !apiTestResultContent
+      !apiTestResultContent ||
+      !modalTitle
     ) {
       console.error("筛选项配置弹窗元素未找到");
       return;
     }
 
     // 绑定事件
-    openBtn.addEventListener("click", openModal);
     addFilterFieldBtn.addEventListener("click", addNewFilterField);
     saveConfigBtn.addEventListener("click", saveConfig);
     cancelConfigBtn.addEventListener("click", closeModal);
     testApiBtn.addEventListener("click", testApi);
+
+    // 绑定基本面配置按钮
+    const fundamentalBtn = document.getElementById(
+      "fundamentalFilterSettingBtn"
+    );
+    if (fundamentalBtn) {
+      fundamentalBtn.addEventListener("click", () => {
+        configType = "fundamental";
+        openModal();
+      });
+    }
+
+    // 绑定财报配置按钮
+    const fsBtn = document.getElementById("fsFilterSettingBtn");
+    if (fsBtn) {
+      fsBtn.addEventListener("click", () => {
+        configType = "fs";
+        openModal();
+      });
+    }
 
     // 点击弹窗背景关闭
     modal.addEventListener("click", (e) => {
@@ -80,6 +102,12 @@
    */
   function openModal() {
     if (!modal) return;
+
+    // 更新弹窗标题
+    if (modalTitle) {
+      modalTitle.textContent =
+        configType === "fundamental" ? "基本面筛选项配置" : "财报筛选项配置";
+    }
 
     // 加载当前配置
     loadCurrentConfig();
@@ -116,10 +144,18 @@
    * 加载当前配置
    */
   function loadCurrentConfig() {
-    // 从全局 FILTER_FIELDS 获取当前配置
-    const globalFilterFields =
-      window.FILTER_FIELDS ||
-      (typeof FILTER_FIELDS !== "undefined" ? FILTER_FIELDS : []);
+    // 根据类型从全局变量获取当前配置
+    let globalFilterFields = [];
+    if (configType === "fundamental") {
+      globalFilterFields =
+        window.FILTER_FIELDS ||
+        (typeof FILTER_FIELDS !== "undefined" ? FILTER_FIELDS : []);
+    } else if (configType === "fs") {
+      globalFilterFields =
+        window.FS_FILTER_FIELDS ||
+        (typeof FS_FILTER_FIELDS !== "undefined" ? FS_FILTER_FIELDS : []);
+    }
+
     if (globalFilterFields && globalFilterFields.length > 0) {
       currentConfig = JSON.parse(JSON.stringify(globalFilterFields));
     } else {
@@ -426,15 +462,21 @@
       return;
     }
 
-    // 提取 metricsList
-    const metricsList = validConfig
+    // 提取 metricsList（使用新的对象格式）
+    const fundamentalMetrics = validConfig
       .map((field) => field.key.trim())
       .filter(Boolean);
 
-    if (metricsList.length === 0) {
+    if (fundamentalMetrics.length === 0) {
       alert("没有有效的理杏仁指标");
       return;
     }
+
+    // 使用新的对象格式：fundamental 和 fs
+    const metricsList = {
+      fundamental: configType === "fundamental" ? fundamentalMetrics : [],
+      fs: configType === "fs" ? fundamentalMetrics : [],
+    };
 
     // 显示加载状态
     testApiBtn.disabled = true;
@@ -498,11 +540,6 @@
       return field.key && field.label;
     });
 
-    if (validConfig.length === 0) {
-      alert("至少需要配置一个筛选项");
-      return;
-    }
-
     // 检查是否有重复的 key
     const keys = validConfig.map((f) => f.key.trim());
     const uniqueKeys = new Set(keys);
@@ -538,6 +575,7 @@
         },
         body: JSON.stringify({
           filterConfig: validConfig,
+          type: configType,
         }),
       });
 
@@ -554,14 +592,18 @@
       console.log("配置保存成功:", result);
 
       // 只有在后端返回成功响应后，才执行以下操作
-      // 更新全局 FILTER_FIELDS
+      // 更新全局配置变量
       if (typeof window !== "undefined") {
-        window.FILTER_FIELDS = validConfig;
+        if (configType === "fundamental") {
+          window.FILTER_FIELDS = validConfig;
+        } else if (configType === "fs") {
+          window.FS_FILTER_FIELDS = validConfig;
+        }
 
         // 触发自定义事件，通知主页面配置已更新
         // 同时在 document 和 window 上触发事件，确保能被捕获
         const event = new CustomEvent("filterConfigUpdated", {
-          detail: { config: validConfig },
+          detail: { config: validConfig, type: configType },
           bubbles: true, // 允许事件冒泡
           cancelable: true, // 允许取消事件
         });

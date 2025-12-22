@@ -21,6 +21,7 @@ PORT = 8001
 TOKEN = '0d9a65fe-d808-4577-95b5-2bd190fdd409'
 HK_COMPANY_URL = 'https://open.lixinger.com/api/hk/company'
 HK_FUNDAMENTAL_URL = 'https://open.lixinger.com/api/hk/company/fundamental/non_financial'
+HK_FS_URL = 'https://open.lixinger.com/api/hk/company/fs/non_financial'
 
 # 缓存文件路径
 HK_STOCKS_CACHE_FILE = os.path.join(CACHE_DIR, 'hk_stocks_cache.json')
