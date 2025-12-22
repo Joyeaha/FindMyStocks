@@ -13,6 +13,9 @@
   let saveConfigBtn = null;
   let cancelConfigBtn = null;
   let openBtn = null;
+  let testApiBtn = null;
+  let apiTestResult = null;
+  let apiTestResultContent = null;
 
   // 当前编辑的筛选项配置（临时状态）
   let currentConfig = [];
@@ -31,6 +34,9 @@
     saveConfigBtn = document.getElementById("saveConfigBtn");
     cancelConfigBtn = document.getElementById("cancelConfigBtn");
     openBtn = document.getElementById("fundamentalFilterSettingBtn");
+    testApiBtn = document.getElementById("testApiBtn");
+    apiTestResult = document.getElementById("apiTestResult");
+    apiTestResultContent = document.getElementById("apiTestResultContent");
 
     if (
       !modal ||
@@ -38,7 +44,10 @@
       !addFilterFieldBtn ||
       !saveConfigBtn ||
       !cancelConfigBtn ||
-      !openBtn
+      !openBtn ||
+      !testApiBtn ||
+      !apiTestResult ||
+      !apiTestResultContent
     ) {
       console.error("筛选项配置弹窗元素未找到");
       return;
@@ -49,6 +58,7 @@
     addFilterFieldBtn.addEventListener("click", addNewFilterField);
     saveConfigBtn.addEventListener("click", saveConfig);
     cancelConfigBtn.addEventListener("click", closeModal);
+    testApiBtn.addEventListener("click", testApi);
 
     // 点击弹窗背景关闭
     modal.addEventListener("click", (e) => {
@@ -91,6 +101,11 @@
     modal.classList.add("hidden");
     modal.style.display = "none";
     document.body.style.overflow = ""; // 恢复滚动
+
+    // 隐藏API测试结果
+    if (apiTestResult) {
+      apiTestResult.classList.add("hidden");
+    }
 
     // 重置配置（不保存）
     currentConfig = [];
@@ -394,6 +409,72 @@
     if (confirm("确定要删除这个筛选项吗？")) {
       currentConfig.splice(index, 1);
       renderFilterFieldsList();
+    }
+  }
+
+  /**
+   * 测试API
+   */
+  async function testApi() {
+    // 验证配置
+    const validConfig = currentConfig.filter((field) => {
+      return field.key && field.label;
+    });
+
+    if (validConfig.length === 0) {
+      alert("至少需要配置一个筛选项才能测试API");
+      return;
+    }
+
+    // 提取 metricsList
+    const metricsList = validConfig
+      .map((field) => field.key.trim())
+      .filter(Boolean);
+
+    if (metricsList.length === 0) {
+      alert("没有有效的理杏仁指标");
+      return;
+    }
+
+    // 显示加载状态
+    testApiBtn.disabled = true;
+    testApiBtn.textContent = "🔄 测试中...";
+    apiTestResult.classList.remove("hidden");
+    apiTestResultContent.textContent = "正在请求API...";
+
+    try {
+      // 获取当前日期
+      const today = new Date();
+      const date = `${today.getFullYear()}-${String(
+        today.getMonth() + 1
+      ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+      // 发送API请求
+      const response = await fetch("/api/filter", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stockCodes: ["00700"],
+          metricsList: metricsList,
+          date: date,
+        }),
+      });
+
+      // 解析响应
+      const result = await response.json();
+
+      // 格式化JSON显示（保持缩进）
+      const formattedResult = JSON.stringify(result, null, 2);
+      apiTestResultContent.textContent = formattedResult;
+    } catch (error) {
+      console.error("API测试失败:", error);
+      apiTestResultContent.textContent = `错误: ${error.message}`;
+    } finally {
+      // 恢复按钮状态
+      testApiBtn.disabled = false;
+      testApiBtn.textContent = "🧪 测试API";
     }
   }
 
