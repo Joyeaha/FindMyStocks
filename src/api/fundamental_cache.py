@@ -8,8 +8,8 @@ import json
 import os
 from typing import Optional, Dict, Any, List
 
-from . import config
-from .utils import log_message, format_timestamp
+from .. import config
+from ..utils import log_message, format_timestamp
 
 
 def _load_cache() -> Dict[str, Any]:

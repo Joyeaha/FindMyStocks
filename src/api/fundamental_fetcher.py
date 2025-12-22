@@ -11,8 +11,8 @@ import gzip
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Tuple, Optional
 
-from . import config
-from .utils import log_message
+from .. import config
+from ..utils import log_message
 
 
 def request_api(url: str, payload: Dict[str, Any]) -> bytes:
