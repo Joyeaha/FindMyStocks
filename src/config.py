@@ -8,9 +8,11 @@ import os
 # 获取项目根目录的绝对路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_DIR = os.path.join(BASE_DIR, 'cache')
+USERDATA_DIR = os.path.join(BASE_DIR, 'userdata')
 
-# 确保缓存目录存在
+# 确保缓存目录和用户数据目录存在
 os.makedirs(CACHE_DIR, exist_ok=True)
+os.makedirs(USERDATA_DIR, exist_ok=True)
 
 # 服务器配置
 PORT = 8001
@@ -23,6 +25,9 @@ HK_FUNDAMENTAL_URL = 'https://open.lixinger.com/api/hk/company/fundamental/non_f
 # 缓存文件路径
 HK_STOCKS_CACHE_FILE = os.path.join(CACHE_DIR, 'hk_stocks_cache.json')
 FUNDAMENTAL_CACHE_FILE = os.path.join(CACHE_DIR, 'fundamental_cache.json')
+
+# 用户数据文件路径
+FILTER_CONFIG_FILE = os.path.join(USERDATA_DIR, 'filter_config.json')
 
 # 缓存配置
 FUNDAMENTAL_CACHE_EXPIRE_DAYS = 3

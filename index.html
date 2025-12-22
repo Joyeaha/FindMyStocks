@@ -58,11 +58,29 @@
         </div>
       </div>
 
-      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+      <div
+        id="fundamentalFilter"
+        class="bg-white rounded-lg shadow-md p-6 mb-6"
+      >
         <!-- 筛选条件标题 -->
         <div class="mb-4">
-          <h3 class="font-semibold text-gray-600">
+          <h3 class="font-semibold text-gray-600 flex items-center">
             基本面筛选（仅在未输入股票代码时可用）
+            <div
+              id="fundamentalFilterSettingBtn"
+              class="rounded-md border border-gray-300 text-gray-500 cursor-pointer"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20">
+                <path
+                  d="M13 13h4-4V8H7v5h6v4-4H7V8H3h4V3v5h6V3v5h4-4v5zm-6 0v4-4H3h4z"
+                  stroke="currentColor"
+                  fill="none"
+                  fill-rule="evenodd"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ></path>
+              </svg>
+            </div>
           </h3>
         </div>
 
@@ -105,6 +123,79 @@
       </div>
     </div>
 
+    <!-- 筛选项配置弹窗 -->
+    <div
+      id="filterConfigModal"
+      class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center"
+      style="display: none"
+    >
+      <div
+        class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        <!-- 弹窗标题 -->
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-xl font-semibold text-gray-800">基本面筛选项配置</h2>
+        </div>
+
+        <!-- 弹窗内容 -->
+        <div class="px-6 py-4 flex-1 overflow-y-auto">
+          <!-- 添加按钮 -->
+          <button
+            id="addFilterFieldBtn"
+            class="mb-4 w-full h-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span class="ml-2">添加新筛选项</span>
+          </button>
+
+          <!-- 分隔线 -->
+          <div class="border-t border-gray-200 mb-4"></div>
+
+          <!-- 筛选项列表 -->
+          <div id="filterFieldsList" class="space-y-2">
+            <!-- 表头 -->
+            <div
+              class="grid grid-cols-3 gap-4 mb-2 pb-2 border-b border-gray-200"
+            >
+              <div class="font-semibold text-sm text-gray-700">筛选项名称</div>
+              <div class="font-semibold text-sm text-gray-700">理杏仁指标</div>
+              <div class="font-semibold text-sm text-gray-700">操作</div>
+            </div>
+            <!-- 筛选项列表项将动态插入这里 -->
+          </div>
+        </div>
+
+        <!-- 弹窗底部按钮 -->
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            id="saveConfigBtn"
+            class="px-4 py-2 text-sm font-medium text-white bg-gray-700 rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            保存
+          </button>
+          <button
+            id="cancelConfigBtn"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 筛选项配置弹窗脚本 -->
+    <script src="/static/filter-config-modal.js"></script>
+
     <script>
       // 基础调试，确保JavaScript正常执行
       try {
@@ -115,82 +206,79 @@
 
       // 后端API配置
       const BACKEND_URL = "http://localhost:8001";
+      const FILTER_CONFIG_API = `${BACKEND_URL}/api/filter-config`;
+
+      // 将 BACKEND_URL 暴露到全局，供 filter-config-modal.js 使用
+      window.BACKEND_URL = BACKEND_URL;
+
+      // 筛选控件通用配置
+      const FILTER_INPUT_CONFIG = {
+        step: 0.1,
+        placeholderMin: "最低",
+        placeholderMax: "最高",
+      };
 
       // 筛选项配置（用于动态生成筛选控件）
-      const FILTER_FIELDS = [
-        {
-          key: "pe_ttm",
-          label: "市盈率TTM",
-          minId: "peTtmMin",
-          maxId: "peTtmMax",
-          step: 0.1,
-          min: 0,
-          placeholderMin: "最低",
-          placeholderMax: "最高",
-        },
-        {
-          key: "dyr",
-          label: "股息率 (%)",
-          minId: "dyrMin",
-          maxId: "dyrMax",
-          step: 0.1,
-          min: 0,
-          placeholderMin: "最低",
-          placeholderMax: "最高",
-        },
-        {
-          key: "pb",
-          label: "市净率PB",
-          minId: "pbMin",
-          maxId: "pbMax",
-          step: 0.1,
-          min: 0,
-          placeholderMin: "最低",
-          placeholderMax: "最高",
-        },
-        {
-          key: "mc",
-          label: "市值（万元）",
-          minId: "mcMin",
-          maxId: "mcMax",
-          step: 1000,
-          min: 0,
-          placeholderMin: "最低",
-          placeholderMax: "最高",
-        },
-      ];
+      // 从后端加载的配置（初始化为空数组）
+      // 暴露到全局，供弹窗模块使用
+      let FILTER_FIELDS = [];
+      window.FILTER_FIELDS = FILTER_FIELDS;
+
+      // 从后端加载筛选项配置
+      async function loadFilterConfig() {
+        try {
+          console.log("正在从后端加载筛选项配置...");
+          const response = await fetch(FILTER_CONFIG_API);
+
+          if (!response.ok) {
+            throw new Error(`HTTP错误!状态码: ${response.status}`);
+          }
+
+          const result = await response.json();
+          const configData = result.data || [];
+
+          // 确保每个字段都有 minId 和 maxId
+          configData.forEach((field) => {
+            if (!field.minId && field.key) {
+              field.minId = `${field.key.trim()}Min`;
+            }
+            if (!field.maxId && field.key) {
+              field.maxId = `${field.key.trim()}Max`;
+            }
+          });
+
+          FILTER_FIELDS = configData;
+          window.FILTER_FIELDS = FILTER_FIELDS; // 同步到全局
+          console.log(`成功加载筛选项配置，共 ${FILTER_FIELDS.length} 项`);
+        } catch (error) {
+          console.error("加载筛选项配置失败:", error);
+          FILTER_FIELDS = [];
+          window.FILTER_FIELDS = FILTER_FIELDS; // 同步到全局
+        }
+      }
 
       // 渲染单个区间筛选控件
       function renderRangeFilterField(field) {
-        const minAttr =
-          typeof field.min === "number" ? `min=\"${field.min}\"` : "";
-        const stepAttr =
-          typeof field.step === "number" ? `step=\"${field.step}\"` : "";
-
         return `
           <div class="flex flex-col">
-            <label for="${
-              field.minId
-            }" class="block font-medium text-sm text-gray-700 mb-2">
+            <label for="${field.minId}" class="block font-medium text-sm text-gray-700 mb-2">
               ${field.label}
             </label>
             <div class="flex items-center text-gray-500">
               <input
                 type="number"
                 id="${field.minId}"
-                ${minAttr}
-                ${stepAttr}
+                step="${FILTER_INPUT_CONFIG.step}"
                 class="md:w-[100px] w-1/2 text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="${field.placeholderMin || "最低"}"
+                placeholder="${FILTER_INPUT_CONFIG.placeholderMin}"
               />
               <div class="mx-1">~</div>
               <input
                 type="number"
                 id="${field.maxId}"
-                ${minAttr}
-                ${stepAttr}
+                step="${FILTER_INPUT_CONFIG.step}"
                 class="md:w-[100px] w-1/2 text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="${field.placeholderMax || "最高"}"
+                placeholder="${FILTER_INPUT_CONFIG.placeholderMax}"
               />
             </div>
           </div>
@@ -201,12 +289,13 @@
       function initFilterFields() {
         const container = document.getElementById("filterFieldsContainer");
         if (!container) return;
-        container.innerHTML = FILTER_FIELDS.map(renderRangeFilterField).join(
-          ""
-        );
+
+        // 从全局变量读取配置（确保使用最新值）
+        const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
+        container.innerHTML = fields.map(renderRangeFilterField).join("");
 
         // 为所有筛选输入框绑定 input 事件，实时更新筛选条件描述
-        FILTER_FIELDS.forEach((field) => {
+        fields.forEach((field) => {
           const minInput = document.getElementById(field.minId);
           const maxInput = document.getElementById(field.maxId);
           if (minInput) {
@@ -274,10 +363,36 @@
         }
       }
 
+      // 监听筛选项配置更新事件（在 DOMContentLoaded 之前注册，确保能捕获事件）
+      function handleFilterConfigUpdated(event) {
+        console.log("筛选项配置已更新，重新初始化筛选控件", event);
+        // 更新全局 FILTER_FIELDS 变量
+        if (event.detail && event.detail.config) {
+          FILTER_FIELDS = event.detail.config;
+          window.FILTER_FIELDS = FILTER_FIELDS; // 同步到全局
+          console.log("已更新 FILTER_FIELDS:", FILTER_FIELDS);
+        }
+        // 重新初始化筛选控件
+        initFilterFields();
+        // 更新筛选条件描述
+        updateFilterConditionsDescription();
+      }
+
+      // 立即注册事件监听器（不等待 DOMContentLoaded）
+      document.addEventListener(
+        "filterConfigUpdated",
+        handleFilterConfigUpdated
+      );
+      // 同时也监听 window 对象上的事件（双重保险）
+      window.addEventListener("filterConfigUpdated", handleFilterConfigUpdated);
+
       // 页面加载完成后初始化
       try {
-        document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", async () => {
           console.log("DOM加载完成，开始初始化页面");
+
+          // 先加载筛选项配置
+          await loadFilterConfig();
 
           // 设置默认日期为今天
           const today = new Date().toISOString().split("T")[0];
@@ -678,76 +793,46 @@
         );
         if (!descriptionElement) return;
 
-        const stockCode = document.getElementById("stockCode").value.trim();
-
-        // 如果有股票代码，显示查询信息
-        if (stockCode) {
-          descriptionElement.textContent = `查询股票：${stockCode}`;
-          descriptionElement.style.display = "block";
+        const stockCodeInput = document.getElementById("stockCode");
+        const hasStockCode =
+          (stockCodeInput ? stockCodeInput.value.trim() : "").length !== 0;
+        if (hasStockCode) {
+          descriptionElement.textContent = "";
+          descriptionElement.style.display = "none";
           return;
         }
 
         // 构建筛选条件描述
         const conditions = [];
 
-        // 获取所有筛选字段的值
-        const peTtmMin = parseFloat(document.getElementById("peTtmMin").value);
-        const peTtmMax = parseFloat(document.getElementById("peTtmMax").value);
-        const dyrMin = parseFloat(document.getElementById("dyrMin").value);
-        const dyrMax = parseFloat(document.getElementById("dyrMax").value);
-        const pbMin = parseFloat(document.getElementById("pbMin").value);
-        const pbMax = parseFloat(document.getElementById("pbMax").value);
-        const mcMin = parseFloat(document.getElementById("mcMin").value);
-        const mcMax = parseFloat(document.getElementById("mcMax").value);
+        // 从配置中动态获取所有筛选字段
+        const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
 
-        // 构建每个条件的描述
-        if (!isNaN(peTtmMin) || !isNaN(peTtmMax)) {
-          let condition = "市盈率";
-          if (!isNaN(peTtmMin) && !isNaN(peTtmMax)) {
-            condition += ` ${peTtmMin} ~ ${peTtmMax}`;
-          } else if (!isNaN(peTtmMin)) {
-            condition += ` ≥ ${peTtmMin}`;
-          } else {
-            condition += ` ≤ ${peTtmMax}`;
-          }
-          conditions.push(condition);
-        }
+        fields.forEach((field) => {
+          if (!field.minId || !field.maxId) return;
 
-        if (!isNaN(dyrMin) || !isNaN(dyrMax)) {
-          let condition = "股息率";
-          if (!isNaN(dyrMin) && !isNaN(dyrMax)) {
-            condition += ` ${dyrMin}% ~ ${dyrMax}%`;
-          } else if (!isNaN(dyrMin)) {
-            condition += ` ≥ ${dyrMin}%`;
-          } else {
-            condition += ` ≤ ${dyrMax}%`;
-          }
-          conditions.push(condition);
-        }
+          const minInput = document.getElementById(field.minId);
+          const maxInput = document.getElementById(field.maxId);
 
-        if (!isNaN(pbMin) || !isNaN(pbMax)) {
-          let condition = "市净率";
-          if (!isNaN(pbMin) && !isNaN(pbMax)) {
-            condition += ` ${pbMin} ~ ${pbMax}`;
-          } else if (!isNaN(pbMin)) {
-            condition += ` ≥ ${pbMin}`;
-          } else {
-            condition += ` ≤ ${pbMax}`;
-          }
-          conditions.push(condition);
-        }
+          // 如果元素不存在，跳过
+          if (!minInput && !maxInput) return;
 
-        if (!isNaN(mcMin) || !isNaN(mcMax)) {
-          let condition = "市值（万元）";
-          if (!isNaN(mcMin) && !isNaN(mcMax)) {
-            condition += ` ${mcMin} ~ ${mcMax}`;
-          } else if (!isNaN(mcMin)) {
-            condition += ` ≥ ${mcMin}`;
-          } else {
-            condition += ` ≤ ${mcMax}`;
+          const minValue = minInput ? parseFloat(minInput.value) : NaN;
+          const maxValue = maxInput ? parseFloat(maxInput.value) : NaN;
+
+          // 如果至少有一个值，构建条件描述
+          if (!isNaN(minValue) || !isNaN(maxValue)) {
+            let condition = field.label || field.key;
+            if (!isNaN(minValue) && !isNaN(maxValue)) {
+              condition += ` ${minValue} ~ ${maxValue}`;
+            } else if (!isNaN(minValue)) {
+              condition += ` ≥ ${minValue}`;
+            } else {
+              condition += ` ≤ ${maxValue}`;
+            }
+            conditions.push(condition);
           }
-          conditions.push(condition);
-        }
+        });
 
         // 更新显示
         if (conditions.length > 0) {

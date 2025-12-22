@@ -12,6 +12,7 @@ from .. import config
 from . import fundamental_cache
 from . import fundamental_fetcher
 from . import stock_filter
+from . import filter_config
 from ..utils import log_message, get_current_date, send_error_response, send_json_response
 
 if TYPE_CHECKING:
@@ -210,13 +211,12 @@ class StockAPIHandler:
             elif not stock.get('stockName'):
                 stock['stockName'] = stock_code or ''
         
-        log_message(f"筛选完成，原始数据量: {len(stocks_data)}, 筛选后数据量: {len(filtered_stocks)}")
-        
-        return {
-            "total": len(filtered_stocks),
-            "data": filtered_stocks
-        }
-    
+            log_message(f"筛选完成，原始数据量: {len(stocks_data)}, 筛选后数据量: {len(filtered_stocks)}")
+            
+            return {
+                "total": len(filtered_stocks),
+                "data": filtered_stocks
+            }
     @staticmethod
     def handle_post(request_params: Dict[str, Any], request_handler: 'BaseHTTPRequestHandler') -> bool:
         """
@@ -259,8 +259,19 @@ class StockAPIHandler:
                 send_json_response(result, request_handler)
                 return True
             
+            # 接口三：保存筛选项配置
+            elif 'filterConfig' in request_params:
+                filter_config_data = request_params.get('filterConfig')
+                if not isinstance(filter_config_data, list):
+                    send_error_response(400, "filterConfig 必须是数组", request_handler)
+                    return True
+                
+                filter_config.FilterConfigManager.save_filter_config(filter_config_data)
+                send_json_response({"success": True, "message": "配置已保存"}, request_handler)
+                return True
+            
             else:
-                send_error_response(400, "缺少必要参数：需要提供 stockCodes 或 metricsFilter", request_handler)
+                send_error_response(400, "缺少必要参数：需要提供 stockCodes、metricsFilter 或 filterConfig", request_handler)
                 return True
         
         except ValueError as e:
@@ -269,6 +280,31 @@ class StockAPIHandler:
             return True
         except Exception as e:
             log_message(f"处理请求失败: {e}")
+            send_error_response(500, f"Internal Server Error: {str(e)}", request_handler)
+            return True
+    
+    @staticmethod
+    def handle_get(path: str, request_handler: 'BaseHTTPRequestHandler') -> bool:
+        """
+        处理 GET 请求
+        
+        Args:
+            path: 请求路径
+            request_handler: HTTP 请求处理器实例
+            
+        Returns:
+            是否成功处理请求
+        """
+        try:
+            # 获取筛选项配置接口
+            if path == '/api/filter-config':
+                result = filter_config.FilterConfigManager.get_filter_config()
+                send_json_response(result, request_handler)
+                return True
+            
+            return False
+        except Exception as e:
+            log_message(f"处理 GET 请求失败: {e}")
             send_error_response(500, f"Internal Server Error: {str(e)}", request_handler)
             return True
 

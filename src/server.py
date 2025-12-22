@@ -32,12 +32,17 @@ class StockRequestHandler(http.server.BaseHTTPRequestHandler):
             send_error_response(400, "Invalid JSON body", self)
             return
         
-        # 路由到业务 API 处理器
+        # 路由到业务 API 处理器（统一处理所有 POST 请求）
         StockAPIHandler.handle_post(request_params, self)
     
     def do_GET(self) -> None:
-        """处理 GET 请求（静态文件服务）"""
-        # 路由到静态文件处理器
+        """处理 GET 请求（静态文件服务或业务 API）"""
+        # 先尝试业务 API
+        if self.path.startswith('/api/'):
+            if StockAPIHandler.handle_get(self.path, self):
+                return
+        
+        # 再尝试静态文件服务
         if not StaticFileHandler.handle_get(self.path, self):
             send_error_response(404, "Not found", self)
     
