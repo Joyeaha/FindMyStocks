@@ -6,188 +6,86 @@
     <title>股票筛选工具</title>
     <!-- Tailwind CSS 本地文件 -->
     <script src="/static/tailwindcss.min.js"></script>
-    <style>
-      /* 保留必要的自定义样式 */
-      .spinner {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(59, 130, 246, 0.3);
-        border-radius: 50%;
-        border-top-color: #3b82f6;
-        animation: spin 1s ease-in-out infinite;
-        margin-right: 8px;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    </style>
   </head>
   <body class="bg-gray-50 min-h-screen">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- 筛选区域 -->
-      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+      <div class="bg-white rounded-lg shadow-md p-6 mb-4">
         <!-- 基础筛选 -->
         <div class="flex flex-wrap gap-4 mb-6">
           <div class="flex-1 min-w-[200px]">
             <label
               for="stockCode"
-              class="block text-sm font-semibold text-gray-700 mb-2"
+              class="block font-semibold text-gray-700 mb-2"
             >
-              股票代码（可选）
+              股票代码
             </label>
-            <input
-              type="text"
-              id="stockCode"
-              class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-              placeholder="如: 00700（留空则筛选所有股票）"
-            />
+            <div
+              class="flex items-center gap-2 border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
+            >
+              <input
+                type="text"
+                id="stockCode"
+                class="flex-1 text-sm outline-none"
+                placeholder="如: 00700（留空则筛选所有股票）"
+              />
+              <svg
+                id="searchStockCodeBtn"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                class="-ml-0.5 size-4 fill-gray-600 dark:fill-gray-500 cursor-pointer"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z"
+                  clip-rule="evenodd"
+                ></path>
+              </svg>
+            </div>
           </div>
 
           <div class="flex-1 min-w-[200px]">
-            <label
-              for="date"
-              class="block text-sm font-semibold text-gray-700 mb-2"
-            >
+            <label for="date" class="block font-semibold text-gray-700 mb-2">
               指定日期
             </label>
             <input
               type="date"
               id="date"
-              class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
+              class="w-full text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
               required
             />
           </div>
         </div>
+      </div>
 
+      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <!-- 筛选条件标题 -->
         <div class="mb-4">
-          <h3 class="text-sm font-semibold text-gray-600">
-            筛选条件（仅在未输入股票代码时生效）
+          <h3 class="font-semibold text-gray-600">
+            基本面筛选（仅在未输入股票代码时可用）
           </h3>
         </div>
 
-        <!-- 指标筛选 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <!-- 市盈率 TTM -->
-          <div class="flex flex-col">
-            <label class="text-sm font-semibold text-gray-700 mb-2"
-              >市盈率 TTM</label
-            >
-            <div class="flex items-center gap-2">
-              <input
-                type="number"
-                id="peTtmMin"
-                min="0"
-                step="0.1"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最小值"
-              />
+        <!-- 指标筛选（动态生成） -->
+        <div id="filterFieldsContainer" class="flex flex-wrap gap-6 mb-6"></div>
 
-              <input
-                type="number"
-                id="peTtmMax"
-                min="0"
-                step="0.1"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最大值"
-              />
-            </div>
-          </div>
+        <div class="border-t mt-5 mb-5 border-gray-200"></div>
 
-          <!-- 股息率 -->
-          <div class="flex flex-col">
-            <label class="text-sm font-semibold text-gray-700 mb-2"
-              >股息率 (%)</label
-            >
-            <div class="flex items-center gap-2">
-              <input
-                type="number"
-                id="dyrMin"
-                min="0"
-                step="0.1"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最小值"
-              />
-
-              <input
-                type="number"
-                id="dyrMax"
-                min="0"
-                step="0.1"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最大值"
-              />
-            </div>
-          </div>
-
-          <!-- 市净率 PB -->
-          <div class="flex flex-col">
-            <label class="text-sm font-semibold text-gray-700 mb-2"
-              >市净率 PB</label
-            >
-            <div class="flex items-center gap-2">
-              <input
-                type="number"
-                id="pbMin"
-                min="0"
-                step="0.1"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最小值"
-              />
-
-              <input
-                type="number"
-                id="pbMax"
-                min="0"
-                step="0.1"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最大值"
-              />
-            </div>
-          </div>
-
-          <!-- 市值 -->
-          <div class="flex flex-col">
-            <label class="text-sm font-semibold text-gray-700 mb-2"
-              >市值（万元）</label
-            >
-            <div class="flex items-center gap-2">
-              <input
-                type="number"
-                id="mcMin"
-                min="0"
-                step="1000"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最小值"
-              />
-
-              <input
-                type="number"
-                id="mcMax"
-                min="0"
-                step="1000"
-                class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                placeholder="最大值"
-              />
-            </div>
-          </div>
-        </div>
-
+        <div
+          id="filterConditionsDescription"
+          class="text-sm text-gray-500 mb-4"
+        ></div>
         <!-- 按钮组 -->
-        <div class="flex gap-3">
+        <div class="flex gap-6">
           <button
             id="filterBtn"
-            class="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-lg hover:from-green-600 hover:to-green-700 transform hover:-translate-y-0.5 transition-all duration-200 shadow-md hover:shadow-lg uppercase tracking-wide"
+            class="flex-1 px-3 py-3 text-sm text-white font-medium rounded-lg bg-gray-700 leading-5 enabled:hover:bg-gray-800 transform transition-all duration-200 tracking-widest"
           >
             筛选
           </button>
           <button
             id="resetBtn"
-            class="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-lg hover:from-red-600 hover:to-red-700 transform hover:-translate-y-0.5 transition-all duration-200 shadow-md hover:shadow-lg uppercase tracking-wide"
+            class="flex-1 px-3 py-3 text-sm font-medium rounded-lg transform transition-all duration-200 tracking-widest border-2 border-gray-200 text-gray-500 enabled:hover:text-gray-700 enabled:hover:border-gray-300"
           >
             重置
           </button>
@@ -197,9 +95,9 @@
       <!-- 结果区域 -->
       <div class="bg-white rounded-lg shadow-md p-6">
         <div class="flex justify-between items-center mb-6">
-          <h2 class="text-xl font-bold text-gray-800">筛选结果</h2>
+          <h3 class="font-semibold text-gray-600">筛选结果</h3>
           <span
-            class="text-sm font-semibold text-gray-600"
+            class="text-sm font-medium text-gray-600"
             id="resultCount"
           ></span>
         </div>
@@ -218,6 +116,164 @@
       // 后端API配置
       const BACKEND_URL = "http://localhost:8001";
 
+      // 筛选项配置（用于动态生成筛选控件）
+      const FILTER_FIELDS = [
+        {
+          key: "pe_ttm",
+          label: "市盈率TTM",
+          minId: "peTtmMin",
+          maxId: "peTtmMax",
+          step: 0.1,
+          min: 0,
+          placeholderMin: "最低",
+          placeholderMax: "最高",
+        },
+        {
+          key: "dyr",
+          label: "股息率 (%)",
+          minId: "dyrMin",
+          maxId: "dyrMax",
+          step: 0.1,
+          min: 0,
+          placeholderMin: "最低",
+          placeholderMax: "最高",
+        },
+        {
+          key: "pb",
+          label: "市净率PB",
+          minId: "pbMin",
+          maxId: "pbMax",
+          step: 0.1,
+          min: 0,
+          placeholderMin: "最低",
+          placeholderMax: "最高",
+        },
+        {
+          key: "mc",
+          label: "市值（万元）",
+          minId: "mcMin",
+          maxId: "mcMax",
+          step: 1000,
+          min: 0,
+          placeholderMin: "最低",
+          placeholderMax: "最高",
+        },
+      ];
+
+      // 渲染单个区间筛选控件
+      function renderRangeFilterField(field) {
+        const minAttr =
+          typeof field.min === "number" ? `min=\"${field.min}\"` : "";
+        const stepAttr =
+          typeof field.step === "number" ? `step=\"${field.step}\"` : "";
+
+        return `
+          <div class="flex flex-col">
+            <label for="${
+              field.minId
+            }" class="block font-medium text-sm text-gray-700 mb-2">
+              ${field.label}
+            </label>
+            <div class="flex items-center gap-2 text-gray-500">
+              <input
+                type="number"
+                id="${field.minId}"
+                ${minAttr}
+                ${stepAttr}
+                class="max-w-[100px] text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
+                placeholder="${field.placeholderMin || "最低"}"
+              />
+              ~
+              <input
+                type="number"
+                id="${field.maxId}"
+                ${minAttr}
+                ${stepAttr}
+                class="max-w-[100px] text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
+                placeholder="${field.placeholderMax || "最高"}"
+              />
+            </div>
+          </div>
+        `;
+      }
+
+      // 初始化筛选控件
+      function initFilterFields() {
+        const container = document.getElementById("filterFieldsContainer");
+        if (!container) return;
+        container.innerHTML = FILTER_FIELDS.map(renderRangeFilterField).join(
+          ""
+        );
+
+        // 为所有筛选输入框绑定 input 事件，实时更新筛选条件描述
+        FILTER_FIELDS.forEach((field) => {
+          const minInput = document.getElementById(field.minId);
+          const maxInput = document.getElementById(field.maxId);
+          if (minInput) {
+            minInput.addEventListener(
+              "input",
+              updateFilterConditionsDescription
+            );
+          }
+          if (maxInput) {
+            maxInput.addEventListener(
+              "input",
+              updateFilterConditionsDescription
+            );
+          }
+        });
+
+        // 初始化时更新一次筛选条件描述
+        updateFilterConditionsDescription();
+      }
+
+      // 根据股票代码输入框内容，禁用/启用基本面筛选控件
+      function updateFilterControlsState() {
+        const stockCodeInput = document.getElementById("stockCode");
+        const container = document.getElementById("filterFieldsContainer");
+        const filterBtn = document.getElementById("filterBtn");
+        const resetBtn = document.getElementById("resetBtn");
+        if (!stockCodeInput || !container) return;
+
+        const hasStockCode = stockCodeInput.value.trim().length > 0;
+        const inputs = container.querySelectorAll('input[type="number"]');
+
+        inputs.forEach((input) => {
+          input.disabled = hasStockCode;
+          if (hasStockCode) {
+            input.classList.add(
+              "bg-gray-100",
+              "cursor-not-allowed",
+              "opacity-60"
+            );
+          } else {
+            input.classList.remove(
+              "bg-gray-100",
+              "cursor-not-allowed",
+              "opacity-60"
+            );
+          }
+        });
+
+        // 当股票代码有内容时，禁用筛选和重置按钮
+        if (filterBtn) {
+          filterBtn.disabled = hasStockCode;
+          if (hasStockCode) {
+            filterBtn.classList.add("cursor-not-allowed", "opacity-60");
+          } else {
+            filterBtn.classList.remove("cursor-not-allowed", "opacity-60");
+          }
+        }
+        if (resetBtn) {
+          resetBtn.disabled = hasStockCode;
+          if (hasStockCode) {
+            resetBtn.classList.add("cursor-not-allowed", "opacity-60");
+          } else {
+            resetBtn.classList.remove("cursor-not-allowed", "opacity-60");
+          }
+        }
+      }
+
       // 页面加载完成后初始化
       try {
         document.addEventListener("DOMContentLoaded", () => {
@@ -231,6 +287,9 @@
           // 绑定按钮事件
           const filterBtn = document.getElementById("filterBtn");
           const resetBtn = document.getElementById("resetBtn");
+          const stockCodeInput = document.getElementById("stockCode");
+          const searchStockCodeBtn =
+            document.getElementById("searchStockCodeBtn");
 
           if (filterBtn && resetBtn) {
             filterBtn.addEventListener("click", handleFilter);
@@ -239,6 +298,36 @@
           } else {
             console.error("找不到按钮元素");
           }
+
+          // 股票代码输入时更新基本面筛选状态
+          if (stockCodeInput) {
+            stockCodeInput.addEventListener("input", () => {
+              updateFilterControlsState();
+              updateFilterConditionsDescription();
+            });
+            // 在输入框中按回车时触发筛选
+            stockCodeInput.addEventListener("keydown", (event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                // 回车后让输入框失去焦点
+                stockCodeInput.blur();
+                handleFilter();
+              }
+            });
+          }
+
+          // 点击放大镜图标时，触发查询
+          if (searchStockCodeBtn) {
+            searchStockCodeBtn.addEventListener("click", () => {
+              handleFilter();
+            });
+          }
+
+          // 动态渲染筛选控件
+          initFilterFields();
+
+          // 初始化一次状态
+          updateFilterControlsState();
         });
       } catch (e) {
         console.error("页面初始化失败:", e);
@@ -246,7 +335,36 @@
 
       // 添加请求节流控制
       let isRequesting = false;
-      const MIN_REQUEST_INTERVAL = 5000; // 最小请求间隔5秒
+
+      // 切换整页表单的可用/禁用状态
+      function setUIBusy(isBusy) {
+        const root = document;
+        const inputs = root.querySelectorAll("input, select, textarea");
+        const buttons = root.querySelectorAll("button");
+
+        inputs.forEach((el) => {
+          if (el.id === "stockCode") {
+            // 股票代码输入框也一起禁用
+            el.disabled = isBusy;
+          } else {
+            el.disabled = isBusy;
+          }
+          if (isBusy) {
+            el.classList.add("cursor-not-allowed", "opacity-60");
+          } else {
+            el.classList.remove("cursor-not-allowed", "opacity-60");
+          }
+        });
+
+        buttons.forEach((btn) => {
+          btn.disabled = isBusy;
+          if (isBusy) {
+            btn.classList.add("cursor-not-allowed", "opacity-60");
+          } else {
+            btn.classList.remove("cursor-not-allowed", "opacity-60");
+          }
+        });
+      }
 
       // 筛选按钮点击事件
       async function handleFilter() {
@@ -258,19 +376,29 @@
           return;
         }
 
-        try {
-          // 设置请求状态为正在请求
-          isRequesting = true;
+        // 先进行所有验证检查，再设置请求状态
+        const stockCode = document.getElementById("stockCode").value.trim();
+        const date = document.getElementById("date").value;
 
-          const stockCode = document.getElementById("stockCode").value.trim();
-          const date = document.getElementById("date").value;
+        // 验证日期是否填写
+        if (!date) {
+          alert("请选择指定日期");
+          return;
+        }
 
-          // 验证日期是否填写
-          if (!date) {
-            alert("请选择指定日期");
-            isRequesting = false;
+        // 如果没有股票代码，检查是否有筛选条件
+        if (!stockCode) {
+          const hasFilter = checkHasFilterConditions();
+          if (!hasFilter) {
+            alert("请至少输入一个筛选条件");
             return;
           }
+        }
+
+        // 所有验证通过后，设置请求状态
+        try {
+          isRequesting = true;
+          setUIBusy(true);
 
           // 显示加载状态
           showLoading();
@@ -299,7 +427,10 @@
           console.error("操作失败:", error);
 
           // 针对不同错误类型显示友好的错误消息
-          if (error.message.includes("429")) {
+          if (error.message.includes("缺少筛选条件")) {
+            // 这个错误已经在调用前检查过了，不应该到达这里，但作为防御性处理
+            // 不显示 alert，因为已经在调用前显示过了
+          } else if (error.message.includes("429")) {
             alert(
               "请求次数过多，请稍后再试。\n\n建议：\n1. 减少同时查询的股票数量\n2. 延长两次查询之间的时间间隔"
             );
@@ -309,11 +440,11 @@
 
           showNoResults();
         } finally {
-          // 延迟重置请求状态，确保最小请求间隔
-          setTimeout(() => {
-            isRequesting = false;
-            console.log("请求状态重置，可以发起新请求");
-          }, MIN_REQUEST_INTERVAL);
+          isRequesting = false;
+          console.log("请求状态重置，可以发起新请求");
+          setUIBusy(false);
+          // 根据当前股票代码输入内容，恢复筛选区域应有的禁用状态
+          updateFilterControlsState();
         }
       }
 
@@ -332,8 +463,13 @@
           .toISOString()
           .split("T")[0];
 
-        // 清空结果
-        showNoResults();
+        // 更新筛选控件的禁用状态（因为股票代码已清空，应该启用基本面筛选）
+        updateFilterControlsState();
+
+        // 更新筛选条件描述
+        updateFilterConditionsDescription();
+
+        // 注意：不清空筛选结果，保留当前显示的数据
       }
 
       // 接口一：获取指定股票的基本面数据
@@ -371,6 +507,29 @@
           console.error("获取股票基本面数据失败:", error);
           throw error;
         }
+      }
+
+      // 检查是否有筛选条件
+      function checkHasFilterConditions() {
+        const peTtmMin = parseFloat(document.getElementById("peTtmMin").value);
+        const peTtmMax = parseFloat(document.getElementById("peTtmMax").value);
+        const dyrMin = parseFloat(document.getElementById("dyrMin").value);
+        const dyrMax = parseFloat(document.getElementById("dyrMax").value);
+        const pbMin = parseFloat(document.getElementById("pbMin").value);
+        const pbMax = parseFloat(document.getElementById("pbMax").value);
+        const mcMin = parseFloat(document.getElementById("mcMin").value);
+        const mcMax = parseFloat(document.getElementById("mcMax").value);
+
+        return (
+          !isNaN(peTtmMin) ||
+          !isNaN(peTtmMax) ||
+          !isNaN(dyrMin) ||
+          !isNaN(dyrMax) ||
+          !isNaN(pbMin) ||
+          !isNaN(pbMax) ||
+          !isNaN(mcMin) ||
+          !isNaN(mcMax)
+        );
       }
 
       // 接口二：根据筛选条件筛选股票
@@ -427,9 +586,8 @@
             ];
           }
 
-          // 检查是否有筛选条件
+          // 检查是否有筛选条件（这个检查已经在调用前完成，这里只作为防御性检查）
           if (Object.keys(metricsFilter).length === 0) {
-            alert("请至少输入一个筛选条件");
             throw new Error("缺少筛选条件");
           }
 
@@ -513,6 +671,94 @@
         });
       }
 
+      // 更新筛选条件描述（实时预览）
+      function updateFilterConditionsDescription() {
+        const descriptionElement = document.getElementById(
+          "filterConditionsDescription"
+        );
+        if (!descriptionElement) return;
+
+        const stockCode = document.getElementById("stockCode").value.trim();
+
+        // 如果有股票代码，显示查询信息
+        if (stockCode) {
+          descriptionElement.textContent = `查询股票：${stockCode}`;
+          descriptionElement.style.display = "block";
+          return;
+        }
+
+        // 构建筛选条件描述
+        const conditions = [];
+
+        // 获取所有筛选字段的值
+        const peTtmMin = parseFloat(document.getElementById("peTtmMin").value);
+        const peTtmMax = parseFloat(document.getElementById("peTtmMax").value);
+        const dyrMin = parseFloat(document.getElementById("dyrMin").value);
+        const dyrMax = parseFloat(document.getElementById("dyrMax").value);
+        const pbMin = parseFloat(document.getElementById("pbMin").value);
+        const pbMax = parseFloat(document.getElementById("pbMax").value);
+        const mcMin = parseFloat(document.getElementById("mcMin").value);
+        const mcMax = parseFloat(document.getElementById("mcMax").value);
+
+        // 构建每个条件的描述
+        if (!isNaN(peTtmMin) || !isNaN(peTtmMax)) {
+          let condition = "市盈率";
+          if (!isNaN(peTtmMin) && !isNaN(peTtmMax)) {
+            condition += ` ${peTtmMin} ~ ${peTtmMax}`;
+          } else if (!isNaN(peTtmMin)) {
+            condition += ` ≥ ${peTtmMin}`;
+          } else {
+            condition += ` ≤ ${peTtmMax}`;
+          }
+          conditions.push(condition);
+        }
+
+        if (!isNaN(dyrMin) || !isNaN(dyrMax)) {
+          let condition = "股息率";
+          if (!isNaN(dyrMin) && !isNaN(dyrMax)) {
+            condition += ` ${dyrMin}% ~ ${dyrMax}%`;
+          } else if (!isNaN(dyrMin)) {
+            condition += ` ≥ ${dyrMin}%`;
+          } else {
+            condition += ` ≤ ${dyrMax}%`;
+          }
+          conditions.push(condition);
+        }
+
+        if (!isNaN(pbMin) || !isNaN(pbMax)) {
+          let condition = "市净率";
+          if (!isNaN(pbMin) && !isNaN(pbMax)) {
+            condition += ` ${pbMin} ~ ${pbMax}`;
+          } else if (!isNaN(pbMin)) {
+            condition += ` ≥ ${pbMin}`;
+          } else {
+            condition += ` ≤ ${pbMax}`;
+          }
+          conditions.push(condition);
+        }
+
+        if (!isNaN(mcMin) || !isNaN(mcMax)) {
+          let condition = "市值（万元）";
+          if (!isNaN(mcMin) && !isNaN(mcMax)) {
+            condition += ` ${mcMin} ~ ${mcMax}`;
+          } else if (!isNaN(mcMin)) {
+            condition += ` ≥ ${mcMin}`;
+          } else {
+            condition += ` ≤ ${mcMax}`;
+          }
+          conditions.push(condition);
+        }
+
+        // 更新显示
+        if (conditions.length > 0) {
+          descriptionElement.textContent = `筛选条件：${conditions.join("，")}`;
+          descriptionElement.style.display = "block";
+        } else {
+          descriptionElement.textContent = "";
+          descriptionElement.style.display = "none";
+        }
+      }
+
       // 显示结果
       function displayResults(stocks) {
         const container = document.getElementById("resultTable");
@@ -529,7 +775,7 @@
         let html = `
                 <div class="overflow-x-auto">
                   <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gradient-to-r from-blue-600 to-blue-700">
+                    <thead class="bg-gray-700">
                       <tr>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票名称</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票代码</th>
@@ -555,12 +801,24 @@
           // 格式化市值（如果存在，假设API返回的是元，转换为万元显示）
           const mc = stock.mc ? (parseFloat(stock.mc) / 10000).toFixed(2) : "-";
 
+          // 构建富途链接
+          const futuUrl = stock.stockCode
+            ? `https://www.futunn.com/stock/${stock.stockCode}-HK`
+            : null;
+
           html += `
-                      <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">${
-                          stock.stockName
-                        }</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">${
+                      <tr class="group hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                          <span>${stock.stockName || ""}</span>
+                          ${
+                            futuUrl
+                              ? `<a href="${futuUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" title="在富途查看">
+                                  🔗
+                                </a>`
+                              : ""
+                          }
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800">${
                           stock.stockCode
                         }</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${
@@ -597,14 +855,14 @@
       function showLoading() {
         const container = document.getElementById("resultTable");
         container.innerHTML =
-          '<div class="text-center py-12 text-blue-600 text-lg"><span class="spinner"></span>正在获取数据...</div>';
+          '<button type="button" class="inline-flex cursor-not-allowed items-center rounded-md bg-gray-700 px-4 py-2 text-sm leading-6 font-semibold text-white transition duration-150 ease-in-out" disabled=""><svg class="mr-3 -ml-1 size-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>正在获取数据...</button>';
       }
 
       // 显示无结果状态
       function showNoResults() {
         const container = document.getElementById("resultTable");
         container.innerHTML =
-          '<div class="text-center py-16 text-gray-500 text-lg bg-gray-50 rounded-lg">暂无结果</div>';
+          '<div class="text-center py-16 text-gray-500 bg-gray-50 rounded-lg"><div>暂无结果</div></div>';
         document.getElementById("resultCount").textContent = "";
       }
     </script>
