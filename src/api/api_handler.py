@@ -136,6 +136,26 @@ class StockAPIHandler:
             response_data = fundamental_fetcher.request_api(config.HK_FUNDAMENTAL_URL, payload)
             result = json.loads(response_data)
             
+            # 检查理杏仁API返回的错误
+            # 如果响应中有data字段，说明是成功响应（即使有message字段也是成功的）
+            # 只有当没有data字段，但有error或message字段时，才是错误
+            if 'data' not in result:
+                error_msg = None
+                if 'error' in result:
+                    error_value = result.get('error')
+                    # 只有当error字段存在且值不是"success"时才是错误
+                    if error_value and str(error_value).lower() != 'success':
+                        error_msg = str(error_value)
+                elif 'message' in result:
+                    message_value = result.get('message')
+                    if message_value and str(message_value).lower() != 'success':
+                        error_msg = str(message_value)
+                
+                if error_msg:
+                    api_error = Exception(f"理杏仁API错误: {error_msg}")
+                    api_error.api_error_message = error_msg
+                    raise api_error
+            
             # 为每个股票添加 stockName 字段
             stock_name_mapping = StockAPIHandler._get_stock_name_mapping()
             stocks_data = result.get('data', [])
@@ -149,7 +169,11 @@ class StockAPIHandler:
             return result
         except Exception as e:
             log_message(f"获取股票基本面数据失败: {e}")
-            raise
+            # 如果异常包含理杏仁API的错误信息，保留它
+            if hasattr(e, 'api_error_message'):
+                raise
+            # 否则包装成通用错误
+            raise Exception(f"获取股票基本面数据失败: {str(e)}")
     
     @staticmethod
     def filter_stocks_by_metrics(metrics_filter: Dict[str, list], date: str, metrics_list: Optional[list] = None) -> Dict[str, Any]:
@@ -250,8 +274,18 @@ class StockAPIHandler:
                     return True
                 
                 date = request_params.get('date', get_current_date())
-                result = StockAPIHandler.get_stock_fundamentals(stock_codes, metrics_list, date)
-                send_json_response(result, request_handler)
+                try:
+                    result = StockAPIHandler.get_stock_fundamentals(stock_codes, metrics_list, date)
+                    send_json_response(result, request_handler)
+                except Exception as e:
+                    # 如果异常包含理杏仁API的错误信息，直接返回给前端
+                    if hasattr(e, 'api_error_message'):
+                        error_msg = e.api_error_message
+                        log_message(f"理杏仁API返回错误: {error_msg}")
+                        send_error_response(400, error_msg, request_handler)
+                    else:
+                        log_message(f"获取股票基本面数据失败: {e}")
+                        send_error_response(500, f"Internal Server Error: {str(e)}", request_handler)
                 return True
 
             # 接口二：筛选股票（stockCodes存在时忽略此接口）

@@ -465,12 +465,23 @@
       // 解析响应
       const result = await response.json();
 
+      // 检查是否有错误
+      if (!response.ok || result.error) {
+        // 如果有错误，显示错误信息
+        const errorMsg = result.error || `HTTP错误!状态码: ${response.status}`;
+        apiTestResultContent.textContent = `错误: 
+        ${JSON.stringify(errorMsg, null, 2)}`;
+        return;
+      }
+
       // 格式化JSON显示（保持缩进）
       const formattedResult = JSON.stringify(result, null, 2);
       apiTestResultContent.textContent = formattedResult;
     } catch (error) {
       console.error("API测试失败:", error);
-      apiTestResultContent.textContent = `错误: ${error.message}`;
+      // 显示错误信息
+      apiTestResultContent.textContent = `错误: 
+      ${JSON.stringify(error, null, 2)}`;
     } finally {
       // 恢复按钮状态
       testApiBtn.disabled = false;

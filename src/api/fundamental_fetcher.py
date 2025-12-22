@@ -60,7 +60,37 @@ def request_api(url: str, payload: Dict[str, Any]) -> bytes:
                 time.sleep(retry_delay)
                 retry_delay *= 2
                 continue
-            raise
+            
+            # 尝试读取理杏仁API返回的错误信息
+            error_message = None
+            try:
+                error_body = e.read()
+                # 处理gzip解压
+                if e.headers.get('Content-Encoding') == 'gzip':
+                    try:
+                        error_body = gzip.decompress(error_body)
+                    except Exception:
+                        pass
+                
+                # 尝试解析JSON错误响应
+                try:
+                    error_data = json.loads(error_body.decode('utf-8'))
+                    # 理杏仁API可能返回的错误字段：message, error, msg等
+                    error_message = (
+                        error_data.get('message') or 
+                        error_data.get('error') or 
+                        error_data.get('msg') or 
+                        error_body.decode('utf-8', errors='ignore')
+                    )
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    error_message = error_body.decode('utf-8', errors='ignore') or str(e)
+            except Exception:
+                error_message = str(e)
+            
+            # 创建一个包含理杏仁错误信息的异常
+            api_error = Exception(f"理杏仁API错误: {error_message or f'HTTP {e.code}'}")
+            api_error.api_error_message = error_message or f'HTTP {e.code}'
+            raise api_error
         except Exception as e:
             if attempt == config.MAX_RETRIES - 1:
                 raise

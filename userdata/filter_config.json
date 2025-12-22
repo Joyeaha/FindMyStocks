@@ -1,16 +1,22 @@
 {
   "data": [
     {
+      "key": "pe_ttm",
+      "label": "PE-TTM",
+      "minId": "pe_ttmMin",
+      "maxId": "pe_ttmMax"
+    },
+    {
       "key": "dyr",
       "label": "股息率(%)",
       "minId": "dyrMin",
       "maxId": "dyrMax"
     },
     {
-      "key": "pe_ttm",
-      "label": "PE-TTM",
-      "minId": "pe_ttmMin",
-      "maxId": "pe_ttmMax"
+      "key": "pb",
+      "label": "PB",
+      "minId": "pbMin",
+      "maxId": "pbMax"
     }
   ]
 }
