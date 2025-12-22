@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-基本面数据获取模块
-提供从理杏仁API获取股票基本面数据的功能
+数据获取模块
+提供从理杏仁API获取股票数据的功能（支持基本面和财报数据）
 """
 
 import json
@@ -105,10 +105,11 @@ def _fetch_single_batch(
     batch_num: int,
     total_batches: int,
     date: str,
-    metrics_list: List[str]
+    metrics_list: List[str],
+    api_url: str
 ) -> Tuple[int, List[Dict[str, Any]], List[str], Optional[Exception]]:
     """
-    处理单个批次的基本面数据请求
+    处理单个批次的数据请求
     
     Args:
         batch: 股票代码列表（最多100个）
@@ -116,6 +117,7 @@ def _fetch_single_batch(
         total_batches: 总批次数
         date: 日期字符串
         metrics_list: 指标列表
+        api_url: API地址
     
     Returns:
         (batch_num, batch_data, missing_codes, error)
@@ -130,7 +132,7 @@ def _fetch_single_batch(
     try:
         log_message(f"请求第 {batch_num}/{total_batches} 批，股票数量: {len(batch)}")
         log_message(payload)
-        response_data = json.loads(request_api(config.HK_FUNDAMENTAL_URL, payload))
+        response_data = json.loads(request_api(api_url, payload))
         
         batch_data = response_data.get('data', [])
         missing_codes = []
@@ -145,18 +147,20 @@ def _fetch_single_batch(
         return (batch_num, [], [], e)
 
 
-def batch_fetch_fundamental_data(
+def batch_fetch_data(
     stock_codes: List[str],
     date: str,
-    metrics_list: List[str]
+    metrics_list: List[str],
+    api_url: str
 ) -> Dict[str, Any]:
     """
-    按每100个股票代码一组分批并行请求基本面数据
+    按每100个股票代码一组分批并行请求数据
     
     Args:
         stock_codes: 股票代码列表
         date: 日期字符串，格式为 'YYYY-MM-DD'
         metrics_list: 指标列表
+        api_url: API地址
     
     Returns:
         包含 total 和 data 的字典
@@ -172,7 +176,7 @@ def batch_fetch_fundamental_data(
     total_batches = (len(stock_codes) + config.BATCH_SIZE - 1) // config.BATCH_SIZE
     failed_batches = []
     
-    log_message(f"开始并行批量获取基本面数据，共 {len(stock_codes)} 个股票，分 {total_batches} 批")
+    log_message(f"开始并行批量获取数据，共 {len(stock_codes)} 个股票，分 {total_batches} 批")
 
     # 准备所有批次
     batches = [
@@ -185,7 +189,7 @@ def batch_fetch_fundamental_data(
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # 提交所有任务
         future_to_batch = {
-            executor.submit(_fetch_single_batch, batch, batch_num, total_batches, date, metrics_list): batch_num
+            executor.submit(_fetch_single_batch, batch, batch_num, total_batches, date, metrics_list, api_url): batch_num
             for batch, batch_num in batches
         }
         
@@ -211,7 +215,7 @@ def batch_fetch_fundamental_data(
     if len(failed_batches) == total_batches:
         raise Exception("所有批次请求都失败了")
     
-    log_message(f"批量获取完成，总共获取 {len(all_data)} 条基本面数据，缺失股票数量: {len(missing_codes)}，缺失股票: {missing_codes}")
+    log_message(f"批量获取完成，总共获取 {len(all_data)} 条数据，缺失股票数量: {len(missing_codes)}，缺失股票: {missing_codes}")
     
     return {
         "total": len(all_data),

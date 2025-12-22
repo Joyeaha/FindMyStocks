@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-基本面数据缓存管理模块
-提供缓存数据的读取、保存和过期清理功能
+数据缓存管理模块
+提供缓存数据的读取、保存和过期清理功能（支持基本面和财报数据）
 """
 
 import json
@@ -12,30 +12,30 @@ from .. import config
 from ..utils import log_message, format_timestamp
 
 
-def _load_cache() -> Dict[str, Any]:
+def _load_cache(cache_file: str) -> Dict[str, Any]:
     """加载缓存文件"""
-    if not os.path.exists(config.FUNDAMENTAL_CACHE_FILE):
+    if not os.path.exists(cache_file):
         return {}
     
     try:
-        with open(config.FUNDAMENTAL_CACHE_FILE, 'r', encoding='utf-8') as f:
+        with open(cache_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        log_message(f"读取基本面缓存文件失败: {e}")
+        log_message(f"读取缓存文件失败: {e}")
         return {}
 
 
-def _save_cache(cache_data: Dict[str, Any]) -> None:
+def _save_cache(cache_data: Dict[str, Any], cache_file: str) -> None:
     """保存缓存文件"""
     try:
-        with open(config.FUNDAMENTAL_CACHE_FILE, 'w', encoding='utf-8') as f:
+        with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=2)
     except IOError as e:
         log_message(f"保存缓存文件失败: {e}")
         raise
 
 
-def _clean_expired_cache(cache_data: Dict[str, Any]) -> Dict[str, Any]:
+def _clean_expired_cache(cache_data: Dict[str, Any], cache_file: str) -> Dict[str, Any]:
     """清理过期数据"""
     import time
     current_timestamp = time.time()
@@ -51,30 +51,31 @@ def _clean_expired_cache(cache_data: Dict[str, Any]) -> Dict[str, Any]:
         for expired_date in expired_dates:
             del cache_data[expired_date]
         log_message(f"清理了 {len(expired_dates)} 个过期的缓存数据: {expired_dates}")
-        _save_cache(cache_data)
+        _save_cache(cache_data, cache_file)
     
     return cache_data
 
 
-def get_fundamental_cache(date: str, metrics_list: List[str]) -> Optional[Dict[str, Any]]:
+def get_cache(date: str, metrics_list: List[str], cache_file: str) -> Optional[Dict[str, Any]]:
     """
-    从缓存文件中读取指定日期的基本面数据
+    从缓存文件中读取指定日期的数据
     返回缓存数据，如果不存在、已过期或 metricsList 不匹配则返回 None
     同时清理所有过期数据
     
     Args:
         date: 日期字符串，格式为 'YYYY-MM-DD'
         metrics_list: 请求的指标列表
+        cache_file: 缓存文件路径
     
     Returns:
         缓存的数据，如果不存在、已过期或 metricsList 不匹配则返回 None
     """
-    cache_data = _load_cache()
+    cache_data = _load_cache(cache_file)
     if not cache_data:
         return None
     
     # 清理过期数据
-    cache_data = _clean_expired_cache(cache_data)
+    cache_data = _clean_expired_cache(cache_data, cache_file)
     
     # 检查指定日期的数据是否存在且未过期
     cached_value = cache_data.get(date)
@@ -111,25 +112,27 @@ def get_fundamental_cache(date: str, metrics_list: List[str]) -> Optional[Dict[s
     return None
 
 
-def save_fundamental_cache(date: str, data: Dict[str, Any], metrics_list: List[str]) -> None:
+def save_cache(date: str, data: Dict[str, Any], metrics_list: List[str], cache_file: str, expire_days: int) -> None:
     """
-    按日期保存基本面数据到缓存文件
+    按日期保存数据到缓存文件
     添加过期时间（使用后的指定天数）和 metricsList
     
     Args:
         date: 日期字符串，格式为 'YYYY-MM-DD'
         data: 要缓存的数据
         metrics_list: 指标列表
+        cache_file: 缓存文件路径
+        expire_days: 过期天数
     
     Raises:
         IOError: 保存文件失败
     """
     import time
     
-    cache_data = _load_cache()
+    cache_data = _load_cache(cache_file)
     
     # 计算过期时间（当前时间 + 过期天数）
-    expire_at = time.time() + (config.FUNDAMENTAL_CACHE_EXPIRE_DAYS * 24 * 60 * 60)
+    expire_at = time.time() + (expire_days * 24 * 60 * 60)
     
     # 包装数据，添加过期时间和 metricsList
     cache_entry = {
@@ -143,6 +146,6 @@ def save_fundamental_cache(date: str, data: Dict[str, Any], metrics_list: List[s
     cache_data[date] = cache_entry
     
     # 保存到文件
-    _save_cache(cache_data)
+    _save_cache(cache_data, cache_file)
     expire_date_str = format_timestamp(expire_at)
-    log_message(f"已保存基本面数据到缓存，日期: {date}, metricsList: {metrics_list}, 过期时间: {expire_date_str}")
+    log_message(f"已保存数据到缓存，日期: {date}, metricsList: {metrics_list}, 过期时间: {expire_date_str}")

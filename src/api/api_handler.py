@@ -10,8 +10,8 @@ from urllib.parse import urlparse, parse_qs
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from .. import config
-from . import fundamental_cache
-from . import fundamental_fetcher
+from . import data_cache
+from . import data_fetcher
 from . import stock_filter
 from . import filter_config
 from ..utils import log_message, get_current_date, send_error_response, send_json_response
@@ -52,7 +52,7 @@ class StockAPIHandler:
         log_message("处理请求: 获取港股股票信息")
         
         try:
-            response_data = json.loads(fundamental_fetcher.request_api(config.HK_COMPANY_URL, payload))
+            response_data = json.loads(data_fetcher.request_api(config.HK_COMPANY_URL, payload))
             total = response_data.get('total', 0)
             log_message(f"请求到所有公司数据，公司数量: {total}")
             
@@ -134,7 +134,7 @@ class StockAPIHandler:
         log_message(f"接口一：获取指定股票基本面数据 - 股票={stock_codes}, 指标={metrics_list}, 日期={date}")
         
         try:
-            response_data = fundamental_fetcher.request_api(config.HK_FUNDAMENTAL_URL, payload)
+            response_data = data_fetcher.request_api(config.HK_FUNDAMENTAL_URL, payload)
             result = json.loads(response_data)
             
             # 检查理杏仁API返回的错误
@@ -199,7 +199,7 @@ class StockAPIHandler:
         log_message(f"接口一：获取指定股票财报数据 - 股票={stock_codes}, 指标={metrics_list}, 日期={date}")
         
         try:
-            response_data = fundamental_fetcher.request_api(config.HK_FS_URL, payload)
+            response_data = data_fetcher.request_api(config.HK_FS_URL, payload)
             result = json.loads(response_data)
             
             # 检查理杏仁API返回的错误
@@ -340,7 +340,7 @@ class StockAPIHandler:
             raise ValueError("metricsFilter 不能为空，且 metricsList 未提供")
         
         # 获取所有股票的基本面数据（优先使用缓存）
-        cached_data = fundamental_cache.get_fundamental_cache(date, required_metrics)
+        cached_data = data_cache.get_cache(date, required_metrics, config.FUNDAMENTAL_CACHE_FILE)
         
         if cached_data:
             log_message(f"使用缓存的基本面数据进行筛选，日期: {date}, 指标: {required_metrics}")
@@ -348,17 +348,18 @@ class StockAPIHandler:
         else:
             # 批量获取基本面数据
             log_message(f"缓存未命中，批量获取基本面数据，日期: {date}, 指标: {required_metrics}")
-            fundamental_data = fundamental_fetcher.batch_fetch_fundamental_data(
+            fundamental_data = data_fetcher.batch_fetch_data(
                 stock_codes,
                 date,
-                required_metrics
+                required_metrics,
+                config.HK_FUNDAMENTAL_URL
             )
             stocks_data = fundamental_data.get('data', [])
             
             # 如果数据量大于0才保存到缓存
             total = fundamental_data.get('total', 0)
             if total > 0:
-                fundamental_cache.save_fundamental_cache(date, fundamental_data, required_metrics)
+                data_cache.save_cache(date, fundamental_data, required_metrics, config.FUNDAMENTAL_CACHE_FILE, config.FUNDAMENTAL_CACHE_EXPIRE_DAYS)
                 log_message(f"基本面数据已获取并缓存完成，数据量: {total}")
         
         # 根据 metricsFilter 筛选股票
