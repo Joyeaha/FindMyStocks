@@ -193,6 +193,8 @@
       </div>
     </div>
 
+    <!-- 股票评分计算脚本 -->
+    <script src="/static/stock-rating.js"></script>
     <!-- 筛选项配置弹窗脚本 -->
     <script src="/static/filter-config-modal.js"></script>
 
@@ -204,12 +206,9 @@
         document.write("<h1>JavaScript执行出错:</h1><p>" + e.message + "</p>");
       }
 
-      // 后端API配置
-      const BACKEND_URL = "http://localhost:8001";
-      const FILTER_CONFIG_API = `${BACKEND_URL}/api/filter-config`;
-
-      // 将 BACKEND_URL 暴露到全局，供 filter-config-modal.js 使用
-      window.BACKEND_URL = BACKEND_URL;
+      // API 路径配置（使用相对路径，因为前后端同源）
+      const API_FILTER_URL = "/api/filter";
+      const API_FILTER_CONFIG_URL = "/api/filter-config";
 
       // 筛选控件通用配置
       const FILTER_INPUT_CONFIG = {
@@ -228,7 +227,7 @@
       async function loadFilterConfig() {
         try {
           console.log("正在从后端加载筛选项配置...");
-          const response = await fetch(FILTER_CONFIG_API);
+          const response = await fetch(API_FILTER_CONFIG_URL);
 
           if (!response.ok) {
             throw new Error(`HTTP错误!状态码: ${response.status}`);
@@ -592,13 +591,21 @@
         try {
           console.log("调用接口一：获取指定股票基本面数据");
 
+          // 从配置中提取 metricsList
+          const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
+          const metricsList = fields.map((field) => field.key).filter(Boolean);
+
+          if (metricsList.length === 0) {
+            throw new Error("没有配置筛选项，请先配置筛选项");
+          }
+
           const requestData = {
             stockCodes: stockCodes,
-            metricsList: ["pe_ttm", "pb", "mc", "dyr"],
+            metricsList: metricsList,
             date: date,
           };
 
-          const response = await fetch(BACKEND_URL, {
+          const response = await fetch(API_FILTER_URL, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -626,25 +633,25 @@
 
       // 检查是否有筛选条件
       function checkHasFilterConditions() {
-        const peTtmMin = parseFloat(document.getElementById("peTtmMin").value);
-        const peTtmMax = parseFloat(document.getElementById("peTtmMax").value);
-        const dyrMin = parseFloat(document.getElementById("dyrMin").value);
-        const dyrMax = parseFloat(document.getElementById("dyrMax").value);
-        const pbMin = parseFloat(document.getElementById("pbMin").value);
-        const pbMax = parseFloat(document.getElementById("pbMax").value);
-        const mcMin = parseFloat(document.getElementById("mcMin").value);
-        const mcMax = parseFloat(document.getElementById("mcMax").value);
+        const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
 
-        return (
-          !isNaN(peTtmMin) ||
-          !isNaN(peTtmMax) ||
-          !isNaN(dyrMin) ||
-          !isNaN(dyrMax) ||
-          !isNaN(pbMin) ||
-          !isNaN(pbMax) ||
-          !isNaN(mcMin) ||
-          !isNaN(mcMax)
-        );
+        for (const field of fields) {
+          if (!field.minId || !field.maxId) continue;
+
+          const minInput = document.getElementById(field.minId);
+          const maxInput = document.getElementById(field.maxId);
+
+          if (!minInput || !maxInput) continue;
+
+          const minValue = parseFloat(minInput.value);
+          const maxValue = parseFloat(maxInput.value);
+
+          if (!isNaN(minValue) || !isNaN(maxValue)) {
+            return true;
+          }
+        }
+
+        return false;
       }
 
       // 接口二：根据筛选条件筛选股票
@@ -652,54 +659,44 @@
         try {
           console.log("调用接口二：根据筛选条件筛选股票");
 
-          // 构建 metricsFilter 对象
+          // 从配置中提取 metricsList
+          const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
+          const metricsList = fields.map((field) => field.key).filter(Boolean);
+
+          if (metricsList.length === 0) {
+            throw new Error("没有配置筛选项，请先配置筛选项");
+          }
+
+          // 构建 metricsFilter 对象（动态从配置中读取）
           const metricsFilter = {};
 
-          // 市盈率 TTM 筛选
-          const peTtmMin = parseFloat(
-            document.getElementById("peTtmMin").value
-          );
-          const peTtmMax = parseFloat(
-            document.getElementById("peTtmMax").value
-          );
-          if (!isNaN(peTtmMin) || !isNaN(peTtmMax)) {
-            metricsFilter.pe_ttm = [
-              !isNaN(peTtmMin) ? peTtmMin : null,
-              !isNaN(peTtmMax) ? peTtmMax : null,
-            ];
-          }
+          fields.forEach((field) => {
+            if (!field.key || !field.minId || !field.maxId) return;
 
-          // 股息率筛选
-          const dyrMin = parseFloat(document.getElementById("dyrMin").value);
-          const dyrMax = parseFloat(document.getElementById("dyrMax").value);
-          if (!isNaN(dyrMin) || !isNaN(dyrMax)) {
-            metricsFilter.dyr = [
-              !isNaN(dyrMin) ? dyrMin : null,
-              !isNaN(dyrMax) ? dyrMax : null,
-            ];
-          }
+            const minInput = document.getElementById(field.minId);
+            const maxInput = document.getElementById(field.maxId);
 
-          // 市净率 PB 筛选
-          const pbMin = parseFloat(document.getElementById("pbMin").value);
-          const pbMax = parseFloat(document.getElementById("pbMax").value);
-          if (!isNaN(pbMin) || !isNaN(pbMax)) {
-            metricsFilter.pb = [
-              !isNaN(pbMin) ? pbMin : null,
-              !isNaN(pbMax) ? pbMax : null,
-            ];
-          }
+            if (!minInput || !maxInput) return;
 
-          // 市值 MC 筛选（注意：API返回的市值单位需要确认，这里假设是元）
-          const mcMin = parseFloat(document.getElementById("mcMin").value);
-          const mcMax = parseFloat(document.getElementById("mcMax").value);
-          if (!isNaN(mcMin) || !isNaN(mcMax)) {
-            // 市值单位转换：前端输入万元，转换为元（API返回的可能是元）
-            // 如果API返回的是万元，则不需要乘以10000
-            metricsFilter.mc = [
-              !isNaN(mcMin) ? mcMin * 10000 : null, // 万元转元
-              !isNaN(mcMax) ? mcMax * 10000 : null,
-            ];
-          }
+            const minValue = parseFloat(minInput.value);
+            const maxValue = parseFloat(maxInput.value);
+
+            // 如果至少有一个值有效，则添加到筛选条件中
+            if (!isNaN(minValue) || !isNaN(maxValue)) {
+              // 特殊处理市值字段（需要单位转换：万元转元）
+              if (field.key === "mc") {
+                metricsFilter[field.key] = [
+                  !isNaN(minValue) ? minValue * 10000 : null, // 万元转元
+                  !isNaN(maxValue) ? maxValue * 10000 : null,
+                ];
+              } else {
+                metricsFilter[field.key] = [
+                  !isNaN(minValue) ? minValue : null,
+                  !isNaN(maxValue) ? maxValue : null,
+                ];
+              }
+            }
+          });
 
           // 检查是否有筛选条件（这个检查已经在调用前完成，这里只作为防御性检查）
           if (Object.keys(metricsFilter).length === 0) {
@@ -708,12 +705,13 @@
 
           const requestData = {
             metricsFilter: metricsFilter,
+            metricsList: metricsList,
             date: date,
           };
 
           console.log("发送筛选请求:", requestData);
 
-          const response = await fetch(BACKEND_URL, {
+          const response = await fetch(API_FILTER_URL, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -739,52 +737,7 @@
         }
       }
 
-      // 计算评分
-      function calculateRating(stocks) {
-        return stocks.map((stock) => {
-          let rating = 0;
-
-          // 获取数据
-          const peTtm = parseFloat(stock.pe_ttm) || 0;
-          const pb = parseFloat(stock.pb) || 0;
-          const mc = parseFloat(stock.mc) || 0;
-          const dyr = parseFloat(stock.dyr) || 0;
-
-          // 市盈率TTM评分（0-15为优秀）
-          if (peTtm > 0 && peTtm <= 15) {
-            rating += 10;
-          } else if (peTtm > 15 && peTtm <= 25) {
-            rating += 5;
-          } else if (peTtm > 0) {
-            rating -= 5;
-          }
-
-          // 市净率PB评分（0-2为优秀）
-          if (pb > 0 && pb <= 2) {
-            rating += 10;
-          } else if (pb > 2 && pb <= 3) {
-            rating += 5;
-          } else if (pb > 0) {
-            rating -= 5;
-          }
-
-          // 股息率评分（>3%为优秀）
-          if (dyr >= 3) {
-            rating += 10;
-          } else if (dyr > 0) {
-            rating += 5;
-          }
-
-          // 获取股票名称
-          const stockName = stock.stockName;
-
-          return {
-            ...stock,
-            stockName: stockName,
-            rating: rating,
-          };
-        });
-      }
+      // 计算评分函数已移至 /static/stock-rating.js
 
       // 更新筛选条件描述（实时预览）
       function updateFilterConditionsDescription() {
@@ -856,23 +809,43 @@
           return;
         }
 
-        // 创建表格
-        let html = `
+        // 获取字段配置映射
+        const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
+        const fieldMap = {};
+        fields.forEach((field) => {
+          if (field.key) {
+            fieldMap[field.key] = field.label || field.key;
+          }
+        });
+
+        // 从第一条数据中提取所有字段（排除固定字段和date字段）
+        const fixedFields = ["stockCode", "stockName", "rating", "date"];
+        const firstStock = stocks[0] || {};
+        const dataFields = Object.keys(firstStock).filter(
+          (key) => !fixedFields.includes(key)
+        );
+
+        // 创建表头
+        let headerHtml = `
                 <div class="overflow-x-auto">
                   <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-700">
                       <tr>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票名称</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票代码</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">市盈率 TTM</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">市净率 PB</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">市值（万元）</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股息率 (%)</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">评分</th>
-                      </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-            `;
+        `;
+
+        // 动态添加指标列的表头
+        dataFields.forEach((fieldKey) => {
+          const label = fieldMap[fieldKey] || fieldKey;
+          // 特殊处理市值字段
+          const displayLabel = fieldKey === "mc" ? `${label}（万元）` : label;
+          headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">${displayLabel}</th>`;
+        });
+
+        // 添加评分列
+        headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">评分</th>`;
+        headerHtml += `</tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
 
         // 添加数据行
         stocks.forEach((stock) => {
@@ -883,15 +856,12 @@
               ? "bg-yellow-100 text-yellow-800"
               : "bg-red-100 text-red-800";
 
-          // 格式化市值（如果存在，假设API返回的是元，转换为万元显示）
-          const mc = stock.mc ? (parseFloat(stock.mc) / 10000).toFixed(2) : "-";
-
           // 构建富途链接
           const futuUrl = stock.stockCode
             ? `https://www.futunn.com/stock/${stock.stockCode}-HK`
             : null;
 
-          html += `
+          let rowHtml = `
                       <tr class="group hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                           <span>${stock.stockName || ""}</span>
@@ -904,36 +874,62 @@
                           }
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800">${
-                          stock.stockCode
+                          stock.stockCode || "-"
                         }</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${
-                          stock.pe_ttm
-                            ? parseFloat(stock.pe_ttm).toFixed(2)
-                            : "-"
-                        }</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${
-                          stock.pb ? parseFloat(stock.pb).toFixed(2) : "-"
-                        }</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${mc}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${
-                          stock.dyr ? parseFloat(stock.dyr).toFixed(2) : "-"
-                        }</td>
+          `;
+
+          // 动态添加指标列的数据
+          dataFields.forEach((fieldKey) => {
+            const value = stock[fieldKey];
+            let displayValue = "-";
+
+            if (value !== null && value !== undefined && value !== "") {
+              const numValue = parseFloat(value);
+              if (!isNaN(numValue)) {
+                // 特殊处理市值字段（转换为万元）
+                if (fieldKey.includes("万元")) {
+                  displayValue = (numValue / 10000).toFixed(2);
+                } else {
+                  // 判断是否为百分比字段（根据字段名或配置）
+                  const isPercentage =
+                    fieldKey === "dyr" ||
+                    fieldKey.includes("%") ||
+                    fieldKey.includes("yoy") ||
+                    fieldKey.includes("ratio") ||
+                    fieldKey.includes("rate");
+                  if (isPercentage) {
+                    displayValue = (numValue * 100).toFixed(2);
+                    // 百分比字段可以在这里添加 % 符号，但通常前端显示时不需要，因为表头已经说明了
+                  } else {
+                    displayValue = numValue.toFixed(2);
+                  }
+                }
+              }
+            }
+
+            rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${displayValue}</td>`;
+          });
+
+          // 添加评分列
+          rowHtml += `
                         <td class="px-6 py-4 whitespace-nowrap">
                           <span class="px-3 py-1 inline-flex text-xs font-bold rounded-full ${ratingBgClass}">
-                            ${stock.rating}
+                            ${stock.rating || 0}
                           </span>
                         </td>
                       </tr>
-                  `;
+          `;
+
+          headerHtml += rowHtml;
         });
 
-        html += `
+        headerHtml += `
                     </tbody>
                   </table>
                 </div>
             `;
 
-        container.innerHTML = html;
+        container.innerHTML = headerHtml;
       }
 
       // 显示加载状态

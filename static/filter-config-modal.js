@@ -439,13 +439,7 @@
 
     // 发送请求到后端保存配置
     try {
-      // 从全局变量或默认值获取后端 URL
-      const BACKEND_URL =
-        typeof window !== "undefined" && window.BACKEND_URL
-          ? window.BACKEND_URL
-          : "http://localhost:8001";
-
-      const response = await fetch(`${BACKEND_URL}/api/filter-config`, {
+      const response = await fetch("/api/filter-config", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

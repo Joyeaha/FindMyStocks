@@ -19,6 +19,11 @@ class StockRequestHandler(http.server.BaseHTTPRequestHandler):
     
     def do_POST(self) -> None:
         """处理 POST 请求（业务 API）"""
+        # 只处理 /api/ 开头的请求
+        if not self.path.startswith('/api/'):
+            send_error_response(404, "Not found", self)
+            return
+        
         # 读取请求体
         try:
             content_length = int(self.headers.get('Content-Length', 0))

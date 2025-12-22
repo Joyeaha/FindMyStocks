@@ -1,14 +1,8 @@
 {
   "data": [
     {
-      "key": "pb",
-      "label": "PB",
-      "minId": "pbMin",
-      "maxId": "pbMax"
-    },
-    {
       "key": "dyr",
-      "label": "股息率",
+      "label": "股息率(%)",
       "minId": "dyrMin",
       "maxId": "dyrMax"
     },

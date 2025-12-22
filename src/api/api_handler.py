@@ -152,13 +152,14 @@ class StockAPIHandler:
             raise
     
     @staticmethod
-    def filter_stocks_by_metrics(metrics_filter: Dict[str, list], date: str) -> Dict[str, Any]:
+    def filter_stocks_by_metrics(metrics_filter: Dict[str, list], date: str, metrics_list: Optional[list] = None) -> Dict[str, Any]:
         """
         功能：根据基本面条件筛选股票
         
         Args:
             metrics_filter: 筛选条件字典，格式为 {指标名: [min, max]}
             date: 日期字符串
+            metrics_list: 指标列表（可选），如果提供则使用此列表获取数据，否则从 metrics_filter 的 keys 中提取
         
         Returns:
             包含筛选后股票数据的字典
@@ -173,10 +174,16 @@ class StockAPIHandler:
         # 获取股票代码到名称的映射
         stock_name_mapping = StockAPIHandler._get_stock_name_mapping()
         
-        # 确定需要的指标列表（从筛选条件中提取）
-        required_metrics = list(metrics_filter.keys())
+        # 确定需要的指标列表（优先使用传入的 metrics_list，否则从筛选条件中提取）
+        if metrics_list and isinstance(metrics_list, list) and len(metrics_list) > 0:
+            required_metrics = metrics_list
+            log_message(f"使用传入的 metricsList: {required_metrics}")
+        else:
+            required_metrics = list(metrics_filter.keys())
+            log_message(f"从 metricsFilter 中提取指标列表: {required_metrics}")
+        
         if not required_metrics:
-            raise ValueError("metricsFilter 不能为空")
+            raise ValueError("metricsFilter 不能为空，且 metricsList 未提供")
         
         # 获取所有股票的基本面数据（优先使用缓存）
         cached_data = fundamental_cache.get_fundamental_cache(date, required_metrics)
@@ -255,7 +262,8 @@ class StockAPIHandler:
                     return True
                 
                 date = request_params.get('date', get_current_date())
-                result = StockAPIHandler.filter_stocks_by_metrics(metrics_filter, date)
+                metrics_list = request_params.get('metricsList')  # 可选的指标列表
+                result = StockAPIHandler.filter_stocks_by_metrics(metrics_filter, date, metrics_list)
                 send_json_response(result, request_handler)
                 return True
             
