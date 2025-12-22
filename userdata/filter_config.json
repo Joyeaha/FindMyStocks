@@ -6,13 +6,6 @@
       "minId": "pe_ttmMin",
       "maxId": "pe_ttmMax",
       "type": "fundamental"
-    },
-    {
-      "key": "q.ps.toi.t",
-      "label": "ROE",
-      "minId": "q.ps.toi.tMin",
-      "maxId": "q.ps.toi.tMax",
-      "type": "fs"
     }
   ]
 }

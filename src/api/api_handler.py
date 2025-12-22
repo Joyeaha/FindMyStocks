@@ -193,10 +193,10 @@ class StockAPIHandler:
             "token": config.TOKEN,
             "stockCodes": stock_codes,
             "metricsList": metrics_list,
-            "date": date
+            "date": "latest"
         }
         
-        log_message(f"接口一：获取指定股票财报数据 - 股票={stock_codes}, 指标={metrics_list}, 日期={date}")
+        log_message(f"接口一：获取指定股票财报数据 - 股票={stock_codes}, 指标={metrics_list}, 日期=latest")
         
         try:
             response_data = data_fetcher.request_api(config.HK_FS_URL, payload)
