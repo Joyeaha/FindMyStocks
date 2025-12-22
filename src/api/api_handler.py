@@ -22,22 +22,22 @@ class StockAPIHandler:
     """股票业务 API 处理器"""
     
     @staticmethod
-    def handle_hk_stock_codes() -> Optional[list]:
+    def handle_hk_stocks_info() -> Optional[list]:
         """
-        功能：获取所有港股股票代码
+        功能：获取所有港股股票基础信息（股票代码和股票名称）
         
         Returns:
-            股票代码列表，如果失败则返回 None
+            股票信息列表，每个元素包含 stockCode 和 stockName，如果失败则返回 None
         """
         today = get_current_date()
         
         # 尝试从缓存读取
-        if os.path.exists(config.HK_CODES_CACHE_FILE):
+        if os.path.exists(config.HK_STOCKS_CACHE_FILE):
             try:
-                with open(config.HK_CODES_CACHE_FILE, 'r', encoding='utf-8') as f:
+                with open(config.HK_STOCKS_CACHE_FILE, 'r', encoding='utf-8') as f:
                     cached = json.load(f)
                     if cached.get('date') == today:
-                        log_message("使用缓存的港股代码数据")
+                        log_message("使用缓存的港股股票信息数据")
                         return cached.get('data')
             except (json.JSONDecodeError, IOError) as e:
                 log_message(f"读取缓存失败: {e}")
@@ -47,7 +47,7 @@ class StockAPIHandler:
             "token": config.TOKEN,
             "fsTableType": "non_financial"
         }
-        log_message("处理请求: 获取港股代码")
+        log_message("处理请求: 获取港股股票信息")
         
         try:
             response_data = json.loads(fundamental_fetcher.request_api(config.HK_COMPANY_URL, payload))
@@ -55,24 +55,59 @@ class StockAPIHandler:
             log_message(f"请求到所有公司数据，公司数量: {total}")
             
             company_list = response_data.get('data', [])
-            stock_codes = [company.get('stockCode') for company in company_list if company.get('stockCode')]
+            # 提取股票代码和股票名称
+            stocks_info = []
+            for company in company_list:
+                stock_code = company.get('stockCode')
+                if stock_code:
+                    stock_name = company.get('name') or company.get('nameCn') or company.get('stockName') or stock_code
+                    stocks_info.append({
+                        'stockCode': stock_code,
+                        'stockName': stock_name
+                    })
 
             # 保存到缓存
             try:
                 data_to_cache = {
                     "date": today,
-                    "data": stock_codes
+                    "data": stocks_info
                 }
-                with open(config.HK_CODES_CACHE_FILE, 'w', encoding='utf-8') as f:
+                with open(config.HK_STOCKS_CACHE_FILE, 'w', encoding='utf-8') as f:
                     json.dump(data_to_cache, f, ensure_ascii=False, indent=2)
-                log_message(f"已更新缓存文件: {config.HK_CODES_CACHE_FILE}")
+                log_message(f"已更新缓存文件: {config.HK_STOCKS_CACHE_FILE}")
             except IOError as e:
                 log_message(f"写入缓存失败: {e}")
             
-            return stock_codes
+            return stocks_info
         except Exception as e:
-            log_message(f"请求港股所有代码失败: {e}")
+            log_message(f"请求港股股票信息失败: {e}")
             return None
+    
+    @staticmethod
+    def _get_stock_name_mapping() -> Dict[str, str]:
+        """
+        获取股票代码到股票名称的映射字典
+        
+        Returns:
+            股票代码到股票名称的映射字典
+        """
+        stocks_info = StockAPIHandler.handle_hk_stocks_info()
+        if not stocks_info:
+            return {}
+        return {stock.get('stockCode'): stock.get('stockName', '') for stock in stocks_info if stock.get('stockCode')}
+    
+    @staticmethod
+    def _get_stock_codes() -> Optional[list]:
+        """
+        获取所有港股股票代码列表（从股票信息中提取）
+        
+        Returns:
+            股票代码列表，如果失败则返回 None
+        """
+        stocks_info = StockAPIHandler.handle_hk_stocks_info()
+        if not stocks_info:
+            return None
+        return [stock.get('stockCode') for stock in stocks_info if stock.get('stockCode')]
     
     @staticmethod
     def get_stock_fundamentals(stock_codes: list, metrics_list: list, date: str) -> Dict[str, Any]:
@@ -98,7 +133,19 @@ class StockAPIHandler:
         
         try:
             response_data = fundamental_fetcher.request_api(config.HK_FUNDAMENTAL_URL, payload)
-            return json.loads(response_data)
+            result = json.loads(response_data)
+            
+            # 为每个股票添加 stockName 字段
+            stock_name_mapping = StockAPIHandler._get_stock_name_mapping()
+            stocks_data = result.get('data', [])
+            for stock in stocks_data:
+                stock_code = stock.get('stockCode')
+                if stock_code and stock_code in stock_name_mapping:
+                    stock['stockName'] = stock_name_mapping[stock_code]
+                elif not stock.get('stockName'):
+                    stock['stockName'] = stock_code or ''
+            
+            return result
         except Exception as e:
             log_message(f"获取股票基本面数据失败: {e}")
             raise
@@ -118,9 +165,12 @@ class StockAPIHandler:
         log_message(f"接口二：筛选股票 - 筛选条件={metrics_filter}, 日期={date}")
         
         # 获取所有股票代码
-        stock_codes = StockAPIHandler.handle_hk_stock_codes()
+        stock_codes = StockAPIHandler._get_stock_codes()
         if not stock_codes:
             raise Exception("获取股票代码失败")
+        
+        # 获取股票代码到名称的映射
+        stock_name_mapping = StockAPIHandler._get_stock_name_mapping()
         
         # 确定需要的指标列表（从筛选条件中提取）
         required_metrics = list(metrics_filter.keys())
@@ -151,6 +201,14 @@ class StockAPIHandler:
         
         # 根据 metricsFilter 筛选股票
         filtered_stocks = stock_filter.filter_stocks_by_metrics(stocks_data, metrics_filter)
+        
+        # 为每个股票添加 stockName 字段
+        for stock in filtered_stocks:
+            stock_code = stock.get('stockCode')
+            if stock_code and stock_code in stock_name_mapping:
+                stock['stockName'] = stock_name_mapping[stock_code]
+            elif not stock.get('stockName'):
+                stock['stockName'] = stock_code or ''
         
         log_message(f"筛选完成，原始数据量: {len(stocks_data)}, 筛选后数据量: {len(filtered_stocks)}")
         

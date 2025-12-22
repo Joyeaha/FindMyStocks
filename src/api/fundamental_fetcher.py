@@ -99,6 +99,7 @@ def _fetch_single_batch(
     
     try:
         log_message(f"请求第 {batch_num}/{total_batches} 批，股票数量: {len(batch)}")
+        log_message(payload)
         response_data = json.loads(request_api(config.HK_FUNDAMENTAL_URL, payload))
         
         batch_data = response_data.get('data', [])
@@ -142,7 +143,7 @@ def batch_fetch_fundamental_data(
     failed_batches = []
     
     log_message(f"开始并行批量获取基本面数据，共 {len(stock_codes)} 个股票，分 {total_batches} 批")
-    
+
     # 准备所有批次
     batches = [
         (stock_codes[i:i+config.BATCH_SIZE], i // config.BATCH_SIZE + 1)
