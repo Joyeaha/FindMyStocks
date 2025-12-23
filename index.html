@@ -11,8 +11,37 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- 筛选区域 -->
       <div class="bg-white rounded-lg shadow-md p-6 mb-4">
-        <!-- 基础筛选 -->
+        <!-- 日期选择器 -->
         <div class="flex flex-wrap gap-4 mb-6">
+          <div class="flex-1 min-w-[200px]">
+            <label for="date" class="block font-semibold text-gray-700 mb-2">
+              指定日期
+            </label>
+            <input
+              type="date"
+              id="date"
+              class="w-full text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
+              required
+            />
+          </div>
+
+          <!-- 财报日期选择器 -->
+          <div id="fsDateContainer" class="flex-1 min-w-[200px] hidden">
+            <label for="fsDate" class="block font-semibold text-gray-700 mb-2">
+              指定财报日期
+            </label>
+            <input
+              type="date"
+              id="fsDate"
+              class="w-full text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
+              placeholder="指定财报日期"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- 股票代码 -->
+        <div class="flex flex-wrap gap-4">
           <div class="flex-1 min-w-[200px]">
             <label
               for="stockCode"
@@ -43,18 +72,6 @@
               </svg>
             </div>
           </div>
-
-          <div class="flex-1 min-w-[200px]">
-            <label for="date" class="block font-semibold text-gray-700 mb-2">
-              指定日期
-            </label>
-            <input
-              type="date"
-              id="date"
-              class="w-full text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
-              required
-            />
-          </div>
         </div>
       </div>
 
@@ -62,8 +79,8 @@
         <div id="fundamentalFilter">
           <!-- 筛选条件标题 -->
           <div class="mb-4">
-            <h3 class="font-semibold text-gray-600 flex items-center">
-              基本面筛选（仅在未输入股票代码时可用）
+            <h3 class="font-semibold text-gray-600 flex items-center gap-2">
+              基本面指标
               <div
                 id="fundamentalFilterSettingBtn"
                 class="rounded-md border border-gray-300 text-gray-500 cursor-pointer"
@@ -93,8 +110,8 @@
         <div id="fsFilter">
           <!-- 筛选条件标题 -->
           <div class="mb-4">
-            <h3 class="font-semibold text-gray-600 flex items-center">
-              财报筛选（仅在未输入股票代码时可用）
+            <h3 class="font-semibold text-gray-600 flex items-center gap-2">
+              财报指标
               <div
                 id="fsFilterSettingBtn"
                 class="rounded-md border border-gray-300 text-gray-500 cursor-pointer"
@@ -111,23 +128,6 @@
                 </svg>
               </div>
             </h3>
-          </div>
-
-          <!-- 财报日期选择器 -->
-          <div id="fsDateContainer" class="mb-4 hidden">
-            <label
-              for="fsDate"
-              class="block font-medium text-sm text-gray-700 mb-2"
-            >
-              指定财报日期
-            </label>
-            <input
-              type="date"
-              id="fsDate"
-              class="w-full text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
-              placeholder="指定财报日期"
-              required
-            />
           </div>
 
           <!-- 指标筛选（动态生成） -->
@@ -163,7 +163,9 @@
       <!-- 结果区域 -->
       <div class="bg-white rounded-lg shadow-md p-6">
         <div class="flex justify-between items-center mb-6">
-          <h3 class="font-semibold text-gray-600">筛选结果</h3>
+          <h3 class="font-semibold text-gray-600 flex items-center">
+            筛选结果
+          </h3>
           <span
             class="text-sm font-medium text-gray-600"
             id="resultCount"
@@ -173,7 +175,7 @@
       </div>
     </div>
 
-    <!-- 筛选项配置弹窗 -->
+    <!-- 指标配置弹窗 -->
     <div
       id="filterConfigModal"
       class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center"
@@ -186,9 +188,9 @@
         <div class="px-6 py-4 border-b border-gray-200">
           <h2
             id="filterConfigModalTitle"
-            class="text-xl font-semibold text-gray-800"
+            class="text-xl font-semibold text-gray-600"
           >
-            筛选项配置
+            指标配置
           </h2>
         </div>
 
@@ -210,23 +212,23 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span class="ml-2">添加新筛选项</span>
+            <span class="ml-2">添加新指标</span>
           </button>
 
           <!-- 分隔线 -->
           <div class="border-t border-gray-200 mb-4"></div>
 
-          <!-- 筛选项列表 -->
+          <!-- 指标列表 -->
           <div id="filterFieldsList" class="space-y-2">
             <!-- 表头 -->
             <div
               class="grid grid-cols-3 gap-4 mb-2 pb-2 border-b border-gray-200"
             >
-              <div class="font-semibold text-sm text-gray-700">筛选项名称</div>
+              <div class="font-semibold text-sm text-gray-700">指标名称</div>
               <div class="font-semibold text-sm text-gray-700">理杏仁指标</div>
               <div class="font-semibold text-sm text-gray-700">操作</div>
             </div>
-            <!-- 筛选项列表项将动态插入这里 -->
+            <!-- 指标列表项将动态插入这里 -->
           </div>
 
           <!-- API测试结果显示区域 -->
@@ -270,7 +272,7 @@
 
     <!-- 股票评分计算脚本 -->
     <script src="/static/stock-rating.js"></script>
-    <!-- 筛选项配置弹窗脚本 -->
+    <!-- 指标配置弹窗脚本 -->
     <script src="/static/filter-config-modal.js"></script>
 
     <script>
@@ -292,7 +294,7 @@
         placeholderMax: "最高",
       };
 
-      // 筛选项配置（用于动态生成筛选控件）
+      // 指标配置（用于动态生成筛选控件）
       // 从后端加载的配置（初始化为空数组）
       // 暴露到全局，供弹窗模块使用
       let FILTER_FIELDS = [];
@@ -300,10 +302,10 @@
       window.FILTER_FIELDS = FILTER_FIELDS;
       window.FS_FILTER_FIELDS = FS_FILTER_FIELDS;
 
-      // 从后端加载筛选项配置
+      // 从后端加载指标配置
       async function loadFilterConfig() {
         try {
-          console.log("正在从后端加载筛选项配置...");
+          console.log("正在从后端加载指标配置...");
 
           // 分别加载基本面和财报配置
           const [fundamentalResponse, fsResponse] = await Promise.all([
@@ -348,10 +350,10 @@
           window.FILTER_FIELDS = FILTER_FIELDS; // 同步到全局
           window.FS_FILTER_FIELDS = FS_FILTER_FIELDS; // 同步到全局
           console.log(
-            `成功加载筛选项配置，基本面: ${FILTER_FIELDS.length} 项，财报: ${FS_FILTER_FIELDS.length} 项`
+            `成功加载指标配置，基本面: ${FILTER_FIELDS.length} 项，财报: ${FS_FILTER_FIELDS.length} 项`
           );
         } catch (error) {
-          console.error("加载筛选项配置失败:", error);
+          console.error("加载指标配置失败:", error);
           FILTER_FIELDS = [];
           FS_FILTER_FIELDS = [];
           window.FILTER_FIELDS = FILTER_FIELDS; // 同步到全局
@@ -455,14 +457,14 @@
 
         if (fsDateContainer && fsDateInput) {
           if (fields.length > 0) {
-            // 有财报筛选项时显示日期选择器
+            // 有财报指标时显示日期选择器
             fsDateContainer.classList.remove("hidden");
             // 设置默认日期
             if (!fsDateInput.value) {
               fsDateInput.value = getDefaultFsDate();
             }
           } else {
-            // 没有财报筛选项时隐藏日期选择器
+            // 没有财报指标时隐藏日期选择器
             fsDateContainer.classList.add("hidden");
             fsDateInput.value = "";
           }
@@ -571,8 +573,10 @@
           filterBtn.disabled = hasStockCode;
           if (hasStockCode) {
             filterBtn.classList.add("cursor-not-allowed", "opacity-60");
+            filterBtn.textContent = "筛选功能仅在未填写股票代码时可用";
           } else {
             filterBtn.classList.remove("cursor-not-allowed", "opacity-60");
+            filterBtn.textContent = "筛选";
           }
         }
         if (resetBtn) {
@@ -585,9 +589,9 @@
         }
       }
 
-      // 监听筛选项配置更新事件（在 DOMContentLoaded 之前注册，确保能捕获事件）
+      // 监听指标配置更新事件（在 DOMContentLoaded 之前注册，确保能捕获事件）
       function handleFilterConfigUpdated(event) {
-        console.log("筛选项配置已更新，重新初始化筛选控件", event);
+        console.log("指标配置已更新，重新初始化筛选控件", event);
         // 更新全局 FILTER_FIELDS 变量
         if (event.detail && event.detail.config) {
           const configType = event.detail.type || "fundamental";
@@ -624,7 +628,7 @@
         document.addEventListener("DOMContentLoaded", async () => {
           console.log("DOM加载完成，开始初始化页面");
 
-          // 先加载筛选项配置
+          // 先加载指标配置
           await loadFilterConfig();
 
           // 设置默认日期为今天
@@ -769,7 +773,7 @@
           if (stockCode) {
             // 接口一：获取指定股票的信息
             console.log("使用接口一：获取指定股票数据");
-            // 如果有财报筛选项配置，使用财报日期；否则不传递财报日期（使用基础日期）
+            // 如果有财报指标配置，使用财报日期；否则不传递财报日期（使用基础日期）
             const fsFields = window.FS_FILTER_FIELDS || FS_FILTER_FIELDS || [];
             const fsDateInput = document.getElementById("fsDate");
             const fsDate =
@@ -856,7 +860,7 @@
           .toISOString()
           .split("T")[0];
 
-        // 重置财报日期（如果有财报筛选项，设置为默认日期）
+        // 重置财报日期（如果有财报指标，设置为默认日期）
         const fsDateInput = document.getElementById("fsDate");
         if (fsDateInput && fsFields.length > 0) {
           fsDateInput.value = getDefaultFsDate();
@@ -930,7 +934,7 @@
           const fsMetrics = fsFields.map((field) => field.key).filter(Boolean);
 
           if (fundamentalMetrics.length === 0 && fsMetrics.length === 0) {
-            throw new Error("没有配置筛选项，请先配置筛选项");
+            throw new Error("没有配置指标，请先配置指标");
           }
 
           // 使用新的对象格式：fundamental 和 fs
@@ -1071,7 +1075,7 @@
             .filter(Boolean);
 
           if (metricsList.length === 0 && fsMetricsList.length === 0) {
-            throw new Error("没有配置筛选项，请先配置筛选项");
+            throw new Error("没有配置指标，请先配置指标");
           }
 
           // 构建基本面 metricsFilter 对象（动态从配置中读取）
@@ -1162,7 +1166,7 @@
             date: date,
           };
 
-          // 如果有财报筛选项配置，添加到请求中（即使没有填写筛选值）
+          // 如果有财报指标配置，添加到请求中（即使没有填写筛选值）
           if (fsMetricsList.length > 0) {
             requestData.fsMetricsList = fsMetricsList;
             if (fsDate) {

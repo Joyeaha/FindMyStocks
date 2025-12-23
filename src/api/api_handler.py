@@ -631,7 +631,7 @@ class StockAPIHandler:
                 send_json_response(result, request_handler)
                 return True
             
-            # 接口三：保存筛选项配置
+            # 接口三：保存指标配置
             elif 'filterConfig' in request_params:
                 filter_config_data = request_params.get('filterConfig')
                 config_type = request_params.get('type', 'fundamental')  # 默认为fundamental，向后兼容
@@ -674,7 +674,7 @@ class StockAPIHandler:
             是否成功处理请求
         """
         try:
-            # 获取筛选项配置接口
+            # 获取指标配置接口
             if path.startswith('/api/filter-config'):
                 # 解析查询参数
                 parsed_url = urlparse(path)

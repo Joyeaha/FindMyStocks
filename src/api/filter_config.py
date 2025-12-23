@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-筛选项配置管理模块
-负责读取和保存用户的筛选项配置
+指标配置管理模块
+负责读取和保存用户的指标配置
 """
 
 import json
@@ -13,24 +13,24 @@ from ..utils import log_message
 
 
 class FilterConfigManager:
-    """筛选项配置管理器"""
+    """指标配置管理器"""
 
     @staticmethod
     def get_filter_config(type_filter: Optional[str] = None) -> Dict[str, Any]:
         """
-        功能：获取用户配置的筛选项
+        功能：获取用户配置的指标
 
         Args:
             type_filter: 可选，过滤类型。'fundamental' 或 'fs'，如果为 None 则返回所有配置
 
         Returns:
-            包含筛选项配置的字典，格式为 {"data": [...]} 或 {"fundamental": [...], "fs": [...]}
+            包含指标配置的字典，格式为 {"data": [...]} 或 {"fundamental": [...], "fs": [...]}
         """
-        log_message(f"获取用户筛选项配置，类型过滤: {type_filter}")
+        log_message(f"获取用户指标配置，类型过滤: {type_filter}")
 
         # 如果配置文件不存在，返回空数组
         if not os.path.exists(config.FILTER_CONFIG_FILE):
-            log_message("筛选项配置文件不存在，返回空配置")
+            log_message("指标配置文件不存在，返回空配置")
             if type_filter:
                 return {type_filter: []}
             return {"fundamental": [], "fs": []}
@@ -51,18 +51,18 @@ class FilterConfigManager:
                         fs_data = [item for item in data if item.get('type') == 'fs']
                         
                         if type_filter == 'fundamental':
-                            log_message(f"成功读取基本面筛选项配置，共 {len(fundamental_data)} 项")
+                            log_message(f"成功读取基本面指标配置，共 {len(fundamental_data)} 项")
                             return {"data": fundamental_data}
                         elif type_filter == 'fs':
-                            log_message(f"成功读取财报筛选项配置，共 {len(fs_data)} 项")
+                            log_message(f"成功读取财报指标配置，共 {len(fs_data)} 项")
                             return {"data": fs_data}
                         else:
-                            log_message(f"成功读取筛选项配置，基本面: {len(fundamental_data)} 项，财报: {len(fs_data)} 项")
+                            log_message(f"成功读取指标配置，基本面: {len(fundamental_data)} 项，财报: {len(fs_data)} 项")
                             return {"fundamental": fundamental_data, "fs": fs_data}
                     else:
                         # 旧格式：没有 type 字段，默认为基本面配置
                         if type_filter == 'fundamental' or type_filter is None:
-                            log_message(f"成功读取筛选项配置（旧格式），共 {len(data)} 项")
+                            log_message(f"成功读取指标配置（旧格式），共 {len(data)} 项")
                             if type_filter:
                                 return {"data": data}
                             return {"fundamental": data, "fs": []}
@@ -80,7 +80,7 @@ class FilterConfigManager:
                     else:
                         return {"fundamental": fundamental_data, "fs": fs_data}
         except (json.JSONDecodeError, IOError) as e:
-            log_message(f"读取筛选项配置失败: {e}")
+            log_message(f"读取指标配置失败: {e}")
             if type_filter:
                 return {type_filter: []}
             return {"fundamental": [], "fs": []}
@@ -88,10 +88,10 @@ class FilterConfigManager:
     @staticmethod
     def save_filter_config(filter_config: List[Dict[str, Any]], config_type: str) -> None:
         """
-        功能：保存用户配置的筛选项
+        功能：保存用户配置的指标
 
         Args:
-            filter_config: 筛选项配置列表，每个元素包含 key、label、minId、maxId、type 等字段
+            filter_config: 指标配置列表，每个元素包含 key、label、minId、maxId、type 等字段
             config_type: 配置类型，'fundamental' 或 'fs'
 
         Raises:
@@ -101,15 +101,15 @@ class FilterConfigManager:
         if config_type not in ['fundamental', 'fs']:
             raise ValueError("config_type 必须是 'fundamental' 或 'fs'")
         
-        log_message(f"保存用户筛选项配置，类型: {config_type}，共 {len(filter_config)} 项")
+        log_message(f"保存用户指标配置，类型: {config_type}，共 {len(filter_config)} 项")
 
         try:
             # 验证配置格式
             for field in filter_config:
                 if not isinstance(field, dict):
-                    raise ValueError("筛选项配置格式错误：每个项必须是对象")
+                    raise ValueError("指标配置格式错误：每个项必须是对象")
                 if 'key' not in field or 'label' not in field:
-                    raise ValueError("筛选项配置格式错误：必须包含 key 和 label 字段")
+                    raise ValueError("指标配置格式错误：必须包含 key 和 label 字段")
                 # 确保每个字段都有 type
                 field['type'] = config_type
 
@@ -133,8 +133,8 @@ class FilterConfigManager:
             with open(config.FILTER_CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, ensure_ascii=False, indent=2)
 
-            log_message(f"筛选项配置已保存到: {config.FILTER_CONFIG_FILE}")
+            log_message(f"指标配置已保存到: {config.FILTER_CONFIG_FILE}")
         except IOError as e:
-            log_message(f"保存筛选项配置失败: {e}")
+            log_message(f"保存指标配置失败: {e}")
             raise Exception(f"保存配置失败: {e}")
 

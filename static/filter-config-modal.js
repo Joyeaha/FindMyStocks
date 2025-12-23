@@ -1,6 +1,6 @@
 /**
- * 筛选项配置弹窗模块
- * 负责管理筛选项的配置界面和逻辑
+ * 指标配置弹窗模块
+ * 负责管理指标的配置界面和逻辑
  */
 
 (function () {
@@ -17,7 +17,7 @@
   let apiTestResultContent = null;
   let modalTitle = null;
 
-  // 当前编辑的筛选项配置（临时状态）
+  // 当前编辑的指标配置（临时状态）
   let currentConfig = [];
 
   // 正在编辑的行索引（-1 表示没有正在编辑的行）
@@ -52,7 +52,7 @@
       !apiTestResultContent ||
       !modalTitle
     ) {
-      console.error("筛选项配置弹窗元素未找到");
+      console.error("指标配置弹窗元素未找到");
       return;
     }
 
@@ -106,7 +106,7 @@
     // 更新弹窗标题
     if (modalTitle) {
       modalTitle.textContent =
-        configType === "fundamental" ? "基本面筛选项配置" : "财报筛选项配置";
+        configType === "fundamental" ? "基本面指标配置" : "财报指标配置";
     }
 
     // 加载当前配置
@@ -167,7 +167,7 @@
   }
 
   /**
-   * 渲染筛选项列表
+   * 渲染指标列表
    */
   function renderFilterFieldsList() {
     if (!filterFieldsList) return;
@@ -183,14 +183,14 @@
       headerDiv.className =
         "grid grid-cols-3 gap-4 mb-2 pb-2 border-b border-gray-200";
       headerDiv.innerHTML = `
-        <div class="font-semibold text-sm text-gray-700">筛选项名称</div>
+        <div class="font-semibold text-sm text-gray-700">指标名称</div>
         <div class="font-semibold text-sm text-gray-700">理杏仁指标</div>
         <div class="font-semibold text-sm text-gray-700">操作</div>
       `;
       filterFieldsList.appendChild(headerDiv);
     }
 
-    // 渲染每个筛选项
+    // 渲染每个指标
     currentConfig.forEach((field, index) => {
       const row = createFilterFieldRow(field, index);
       filterFieldsList.appendChild(row);
@@ -198,7 +198,7 @@
   }
 
   /**
-   * 创建筛选项行
+   * 创建指标行
    */
   function createFilterFieldRow(field, index) {
     const row = document.createElement("div");
@@ -223,7 +223,7 @@
    * 创建显示模式的行（文本 + 修改按钮 + 删除按钮）
    */
   function createDisplayModeRow(field, index, row) {
-    // 筛选项名称（文本）
+    // 指标名称（文本）
     const labelText = document.createElement("div");
     labelText.className = "text-sm text-gray-700";
     labelText.textContent = field.label || "";
@@ -285,12 +285,12 @@
       label: field.label || "",
     };
 
-    // 筛选项名称输入框
+    // 指标名称输入框
     const labelInput = document.createElement("input");
     labelInput.type = "text";
     labelInput.className =
       "text-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200";
-    labelInput.placeholder = "筛选项名称";
+    labelInput.placeholder = "指标名称";
     labelInput.value = field.label || "";
 
     // 理杏仁指标输入框
@@ -312,7 +312,7 @@
 
       // 验证必填字段
       if (!newLabel || !newKey) {
-        alert("筛选项名称和理杏仁指标都不能为空");
+        alert("指标名称和理杏仁指标都不能为空");
         return;
       }
 
@@ -330,7 +330,7 @@
         return i !== index && field.label && field.label.trim() === newLabel;
       });
       if (labelConflict) {
-        alert(`筛选项名称 "${newLabel}" 已存在，不能重复`);
+        alert(`指标名称 "${newLabel}" 已存在，不能重复`);
         return;
       }
 
@@ -415,7 +415,7 @@
   }
 
   /**
-   * 添加新筛选项
+   * 添加新指标
    */
   function addNewFilterField() {
     // 如果有正在编辑的行，先退出编辑模式
@@ -439,10 +439,10 @@
   }
 
   /**
-   * 删除筛选项
+   * 删除指标
    */
   function deleteFilterField(index) {
-    if (confirm("确定要删除这个筛选项吗？")) {
+    if (confirm("确定要删除这个指标吗？")) {
       currentConfig.splice(index, 1);
       renderFilterFieldsList();
     }
@@ -482,7 +482,7 @@
     });
 
     if (validConfig.length === 0) {
-      alert("至少需要配置一个筛选项才能测试API");
+      alert("至少需要配置一个指标才能测试API");
       return;
     }
 
@@ -597,7 +597,7 @@
     const labels = validConfig.map((f) => f.label.trim());
     const uniqueLabels = new Set(labels);
     if (labels.length !== uniqueLabels.size) {
-      alert("筛选项名称不能重复");
+      alert("指标名称不能重复");
       return;
     }
 
