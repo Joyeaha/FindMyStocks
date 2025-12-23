@@ -141,7 +141,7 @@
 
         <div
           id="filterConditionsDescription"
-          class="text-sm text-gray-500 mb-4"
+          class="text-sm text-gray-500 mb-4 leading-relaxed"
         ></div>
         <!-- 按钮组 -->
         <div class="flex gap-6">
@@ -549,25 +549,6 @@
           });
         }
 
-        // 处理财报日期选择器
-        const fsDateInput = document.getElementById("fsDate");
-        if (fsDateInput) {
-          fsDateInput.disabled = hasStockCode;
-          if (hasStockCode) {
-            fsDateInput.classList.add(
-              "bg-gray-100",
-              "cursor-not-allowed",
-              "opacity-60"
-            );
-          } else {
-            fsDateInput.classList.remove(
-              "bg-gray-100",
-              "cursor-not-allowed",
-              "opacity-60"
-            );
-          }
-        }
-
         // 当股票代码有内容时，禁用筛选和重置按钮
         if (filterBtn) {
           filterBtn.disabled = hasStockCode;
@@ -917,8 +898,15 @@
         currentSortColumn = null;
         currentSortDirection = "asc";
 
-        // 清空筛选结果
-        showNoResults();
+        // 清空筛选结果面板
+        const container = document.getElementById("resultTable");
+        const countElement = document.getElementById("resultCount");
+        if (container) {
+          container.innerHTML = "";
+        }
+        if (countElement) {
+          countElement.textContent = "";
+        }
       }
 
       // 从嵌套对象中提取字段值（用于财报数据）
@@ -1103,6 +1091,29 @@
         return false;
       }
 
+      // 根据label转换用户输入的筛选值（用于发送给后端）
+      // 与显示时的转换逻辑相反：
+      // - 显示时：API值 / 10000 显示为万元，API值 * 100 显示为百分比
+      // - 筛选时：用户输入的万元 * 10000 转为元，用户输入的百分比 / 100 转为小数
+      function convertFilterValueForBackend(value, label) {
+        if (isNaN(value) || value === null || value === undefined) {
+          return null;
+        }
+
+        // 如果label包含"万元"或"万"，用户输入的是万元，需要转换为元
+        if (label.includes("万元") || label.includes("万")) {
+          return value * 10000;
+        }
+
+        // 如果label包含"%"，用户输入的是百分比（如5表示5%），需要转换为小数（0.05）
+        if (label.includes("%")) {
+          return value / 100;
+        }
+
+        // 否则直接返回原值
+        return value;
+      }
+
       // 接口二：根据筛选条件筛选股票
       async function filterStocksByMetrics(date, fsDate) {
         try {
@@ -1138,24 +1149,11 @@
 
             // 如果至少有一个值有效，则添加到筛选条件中
             if (!isNaN(minValue) || !isNaN(maxValue)) {
-              // 检查label是否包含"万元"或"万"，如果包含则需要单位转换（万元转元）
               const label = field.label || field.key;
-              const needsConversion =
-                label.includes("万元") ||
-                label.includes("万") ||
-                field.key === "mc";
-
-              if (needsConversion) {
-                metricsFilter[field.key] = [
-                  !isNaN(minValue) ? minValue * 10000 : null, // 万元转元
-                  !isNaN(maxValue) ? maxValue * 10000 : null,
-                ];
-              } else {
-                metricsFilter[field.key] = [
-                  !isNaN(minValue) ? minValue : null,
-                  !isNaN(maxValue) ? maxValue : null,
-                ];
-              }
+              metricsFilter[field.key] = [
+                convertFilterValueForBackend(minValue, label),
+                convertFilterValueForBackend(maxValue, label),
+              ];
             }
           });
 
@@ -1175,24 +1173,11 @@
 
             // 如果至少有一个值有效，则添加到筛选条件中
             if (!isNaN(minValue) || !isNaN(maxValue)) {
-              // 检查label是否包含"万元"或"万"，如果包含则需要单位转换（万元转元）
               const label = field.label || field.key;
-              const needsConversion =
-                label.includes("万元") ||
-                label.includes("万") ||
-                field.key === "mc";
-
-              if (needsConversion) {
-                fsMetricsFilter[field.key] = [
-                  !isNaN(minValue) ? minValue * 10000 : null, // 万元转元
-                  !isNaN(maxValue) ? maxValue * 10000 : null,
-                ];
-              } else {
-                fsMetricsFilter[field.key] = [
-                  !isNaN(minValue) ? minValue : null,
-                  !isNaN(maxValue) ? maxValue : null,
-                ];
-              }
+              fsMetricsFilter[field.key] = [
+                convertFilterValueForBackend(minValue, label),
+                convertFilterValueForBackend(maxValue, label),
+              ];
             }
           });
 
@@ -1340,10 +1325,10 @@
         const fsDateInput = document.getElementById("fsDate");
         const otherDataDate = dateInput ? dateInput.value : "";
 
-        // 获取财报日期（如果有财报筛选条件）
-        const hasFsFilterConditions = checkHasFsFilterConditions();
-        const fsDate =
-          hasFsFilterConditions && fsDateInput ? fsDateInput.value : "";
+        // 获取财报日期（如果有财报指标配置，就显示财报日期）
+        // fsFields 已在上面声明，直接使用
+        const hasFsFields = fsFields.length > 0;
+        const fsDate = hasFsFields && fsDateInput ? fsDateInput.value : "";
 
         // 更新显示
         if (conditions.length > 0) {
@@ -1461,6 +1446,25 @@
         if (stocks.length === 0) {
           showNoResults();
           return;
+        }
+
+        // 如果未指定股票代码（批量筛选），滚动到筛选条件描述
+        const stockCodeInput = document.getElementById("stockCode");
+        const hasStockCode =
+          stockCodeInput && stockCodeInput.value.trim().length > 0;
+        if (!hasStockCode) {
+          const descriptionElement = document.getElementById(
+            "filterConditionsDescription"
+          );
+          if (descriptionElement) {
+            // 使用 setTimeout 确保 DOM 更新完成后再滚动
+            setTimeout(() => {
+              descriptionElement.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+            }, 100);
+          }
         }
 
         // 获取字段配置映射（包括基本面和财报）
