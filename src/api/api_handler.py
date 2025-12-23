@@ -193,10 +193,10 @@ class StockAPIHandler:
             "token": config.TOKEN,
             "stockCodes": stock_codes,
             "metricsList": metrics_list,
-            "date": "latest"
+            "date": date
         }
         
-        log_message(f"接口一：获取指定股票财报数据 - 股票={stock_codes}, 指标={metrics_list}, 日期=latest")
+        log_message(f"接口一：获取指定股票财报数据 - 股票={stock_codes}, 指标={metrics_list}, 日期={date}")
         
         try:
             response_data = data_fetcher.request_api(config.HK_FS_URL, payload)
@@ -242,14 +242,15 @@ class StockAPIHandler:
             raise Exception(f"获取股票财报数据失败: {str(e)}")
     
     @staticmethod
-    def get_stock_data(stock_codes: list, metrics_list: Dict[str, list], date: str) -> Dict[str, Any]:
+    def get_stock_data(stock_codes: list, metrics_list: Dict[str, list], date: str, fs_date: Optional[str] = None) -> Dict[str, Any]:
         """
         功能：获取指定股票的数据（支持基本面数据和财报数据）
         
         Args:
             stock_codes: 股票代码列表
             metrics_list: 指标列表对象，格式为 {fundamental: [...], fs: [...]}
-            date: 日期字符串
+            date: 日期字符串（用于基本面数据）
+            fs_date: 财报日期字符串（用于财报数据，如果未提供则使用date）
         
         Returns:
             包含股票数据的字典，格式为 {fundamental: {...}, fs: {...}}
@@ -265,6 +266,10 @@ class StockAPIHandler:
         
         if not has_fundamental and not has_fs:
             raise ValueError("fundamental 和 fs 至少需要提供一个非空数组")
+        
+        # 如果没有提供财报日期，使用基础日期
+        if fs_date is None:
+            fs_date = date
         
         result = {}
         
@@ -282,13 +287,13 @@ class StockAPIHandler:
                 )
                 futures['fundamental'] = future_fundamental
             
-            # 提交财报数据请求
+            # 提交财报数据请求（使用财报日期）
             if has_fs:
                 future_fs = executor.submit(
                     StockAPIHandler.get_stock_fs_data,
                     stock_codes,
                     fs_metrics,
-                    date
+                    fs_date
                 )
                 futures['fs'] = future_fs
             
@@ -401,6 +406,7 @@ class StockAPIHandler:
                 
                 metrics_list_param = request_params.get('metricsList', [])
                 date = request_params.get('date', get_current_date())
+                fs_date = request_params.get('fsDate')  # 财报日期（可选）
                 
                 # 处理metricsList格式：支持数组（向后兼容）和对象（新格式）
                 metrics_list_obj = None
@@ -438,7 +444,7 @@ class StockAPIHandler:
                     return True
                 
                 try:
-                    result = StockAPIHandler.get_stock_data(stock_codes, metrics_list_obj, date)
+                    result = StockAPIHandler.get_stock_data(stock_codes, metrics_list_obj, date, fs_date)
                     send_json_response(result, request_handler)
                 except Exception as e:
                     # 如果异常包含理杏仁API的错误信息，直接返回给前端

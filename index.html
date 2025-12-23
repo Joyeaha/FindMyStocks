@@ -113,6 +113,23 @@
             </h3>
           </div>
 
+          <!-- 财报日期选择器 -->
+          <div id="fsDateContainer" class="mb-4 hidden">
+            <label
+              for="fsDate"
+              class="block font-medium text-sm text-gray-700 mb-2"
+            >
+              指定财报日期
+            </label>
+            <input
+              type="date"
+              id="fsDate"
+              class="w-full text-sm px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-colors"
+              placeholder="指定财报日期"
+              required
+            />
+          </div>
+
           <!-- 指标筛选（动态生成） -->
           <div
             id="fsFilterFieldsContainer"
@@ -401,6 +418,28 @@
         updateFilterConditionsDescription();
       }
 
+      // 计算财报默认日期（向前最近的一个12月31日，如果今天是12月31日就取今天）
+      function getDefaultFsDate() {
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth(); // 0-11
+        const currentDay = today.getDate();
+
+        // 如果今天是12月31日，返回今天
+        if (currentMonth === 11 && currentDay === 31) {
+          return `${currentYear}-12-31`;
+        }
+
+        // 否则返回上一个12月31日
+        // 如果当前月份是12月但日期不是31日，或者月份小于12月，返回去年的12月31日
+        if (currentMonth === 11 || currentMonth < 11) {
+          return `${currentYear - 1}-12-31`;
+        }
+
+        // 理论上不会到达这里，但为了安全返回去年的12月31日
+        return `${currentYear - 1}-12-31`;
+      }
+
       // 初始化财报筛选控件
       function initFsFilterFields() {
         const container = document.getElementById("fsFilterFieldsContainer");
@@ -409,6 +448,25 @@
         // 从全局变量读取配置（确保使用最新值）
         const fields = window.FS_FILTER_FIELDS || FS_FILTER_FIELDS || [];
         container.innerHTML = fields.map(renderRangeFilterField).join("");
+
+        // 控制财报日期选择器的显示/隐藏
+        const fsDateContainer = document.getElementById("fsDateContainer");
+        const fsDateInput = document.getElementById("fsDate");
+
+        if (fsDateContainer && fsDateInput) {
+          if (fields.length > 0) {
+            // 有财报筛选项时显示日期选择器
+            fsDateContainer.classList.remove("hidden");
+            // 设置默认日期
+            if (!fsDateInput.value) {
+              fsDateInput.value = getDefaultFsDate();
+            }
+          } else {
+            // 没有财报筛选项时隐藏日期选择器
+            fsDateContainer.classList.add("hidden");
+            fsDateInput.value = "";
+          }
+        }
 
         // 为所有筛选输入框绑定 input 事件，实时更新筛选条件描述
         fields.forEach((field) => {
@@ -487,6 +545,25 @@
               );
             }
           });
+        }
+
+        // 处理财报日期选择器
+        const fsDateInput = document.getElementById("fsDate");
+        if (fsDateInput) {
+          fsDateInput.disabled = hasStockCode;
+          if (hasStockCode) {
+            fsDateInput.classList.add(
+              "bg-gray-100",
+              "cursor-not-allowed",
+              "opacity-60"
+            );
+          } else {
+            fsDateInput.classList.remove(
+              "bg-gray-100",
+              "cursor-not-allowed",
+              "opacity-60"
+            );
+          }
         }
 
         // 当股票代码有内容时，禁用筛选和重置按钮
@@ -658,10 +735,21 @@
           return;
         }
 
+        // 检查是否有财报筛选条件
+        const hasFsFilter = checkHasFsFilterConditions();
+        if (hasFsFilter) {
+          const fsDate = document.getElementById("fsDate").value;
+          if (!fsDate) {
+            alert("请选择指定财报日期");
+            return;
+          }
+        }
+
         // 如果没有股票代码，检查是否有筛选条件
         if (!stockCode) {
           const hasFilter = checkHasFilterConditions();
-          if (!hasFilter) {
+          const hasFsFilterConditions = checkHasFsFilterConditions();
+          if (!hasFilter && !hasFsFilterConditions) {
             alert("请至少输入一个筛选条件");
             return;
           }
@@ -679,13 +767,24 @@
 
           // 判断使用哪个接口
           if (stockCode) {
-            // 接口一：获取指定股票的基本面数据
+            // 接口一：获取指定股票的信息
             console.log("使用接口一：获取指定股票数据");
-            stockData = await fetchStockFundamentals([stockCode], date);
+            // 如果有财报筛选项配置，使用财报日期；否则不传递财报日期（使用基础日期）
+            const fsFields = window.FS_FILTER_FIELDS || FS_FILTER_FIELDS || [];
+            const fsDateInput = document.getElementById("fsDate");
+            const fsDate =
+              fsFields.length > 0 && fsDateInput && fsDateInput.value
+                ? fsDateInput.value
+                : null;
+            stockData = await fetchStockData([stockCode], date, fsDate);
           } else {
             // 接口二：根据筛选条件筛选股票
             console.log("使用接口二：筛选股票");
-            stockData = await filterStocksByMetrics(date);
+            // 如果有财报筛选条件，使用财报日期；否则使用基础日期
+            const fsDate = hasFsFilter
+              ? document.getElementById("fsDate").value
+              : date;
+            stockData = await filterStocksByMetrics(fsDate);
           }
 
           console.log("获取到的股票数据:", stockData);
@@ -754,6 +853,14 @@
           .toISOString()
           .split("T")[0];
 
+        // 重置财报日期（如果有财报筛选项，设置为默认日期）
+        const fsDateInput = document.getElementById("fsDate");
+        if (fsDateInput && fsFields.length > 0) {
+          fsDateInput.value = getDefaultFsDate();
+        } else if (fsDateInput) {
+          fsDateInput.value = "";
+        }
+
         // 更新筛选控件的禁用状态（因为股票代码已清空，应该启用筛选）
         updateFilterControlsState();
 
@@ -763,8 +870,50 @@
         // 注意：不清空筛选结果，保留当前显示的数据
       }
 
+      // 从嵌套对象中提取字段值（用于财报数据）
+      // 例如：字段 "y.m.roe.t" 从 {y: {m: {roe: {t: 0.2038}}}} 中提取 0.2038
+      function extractNestedFieldValue(obj, fieldKey) {
+        if (!obj || !fieldKey) return null;
+
+        const keys = fieldKey.split(".");
+        let value = obj;
+
+        for (const key of keys) {
+          if (value && typeof value === "object" && key in value) {
+            value = value[key];
+          } else {
+            return null;
+          }
+        }
+
+        return value;
+      }
+
+      // 处理财报数据，提取嵌套字段值到顶层
+      function processFsData(fsData, fsFields) {
+        if (!fsData || !fsFields || fsFields.length === 0) {
+          return fsData;
+        }
+
+        // 获取所有财报字段的key
+        const fsMetrics = fsFields.map((field) => field.key).filter(Boolean);
+
+        // 创建新对象，包含原始数据和提取的字段值
+        const processedData = { ...fsData };
+
+        // 提取每个字段的值
+        fsMetrics.forEach((fieldKey) => {
+          const value = extractNestedFieldValue(fsData, fieldKey);
+          if (value !== null && value !== undefined) {
+            processedData[fieldKey] = value;
+          }
+        });
+
+        return processedData;
+      }
+
       // 接口一：获取指定股票的基本面数据
-      async function fetchStockFundamentals(stockCodes, date) {
+      async function fetchStockData(stockCodes, date, fsDate) {
         try {
           console.log("调用接口一：获取指定股票数据（基本面+财报）");
 
@@ -792,6 +941,11 @@
             metricsList: metricsList,
             date: date,
           };
+
+          // 如果有财报日期，添加到请求中
+          if (fsDate) {
+            requestData.fsDate = fsDate;
+          }
 
           const response = await fetch(API_FILTER_URL, {
             method: "POST",
@@ -821,7 +975,9 @@
               // 按stockCode合并数据
               const fsDataMap = {};
               result.fs.data.forEach((stock) => {
-                fsDataMap[stock.stockCode] = stock;
+                // 处理财报数据，提取嵌套字段值
+                const processedFsData = processFsData(stock, fsFields);
+                fsDataMap[stock.stockCode] = processedFsData;
               });
 
               stockData = stockData.map((stock) => {
@@ -834,8 +990,10 @@
               });
             }
           } else if (result.fs && result.fs.data) {
-            // 如果只有fs数据
-            stockData = result.fs.data;
+            // 如果只有fs数据，处理财报数据
+            stockData = result.fs.data.map((stock) => {
+              return processFsData(stock, fsFields);
+            });
           } else if (result.data) {
             // 向后兼容：如果返回的是旧格式
             stockData = result.data;
@@ -851,6 +1009,29 @@
       // 检查是否有筛选条件
       function checkHasFilterConditions() {
         const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
+
+        for (const field of fields) {
+          if (!field.minId || !field.maxId) continue;
+
+          const minInput = document.getElementById(field.minId);
+          const maxInput = document.getElementById(field.maxId);
+
+          if (!minInput || !maxInput) continue;
+
+          const minValue = parseFloat(minInput.value);
+          const maxValue = parseFloat(maxInput.value);
+
+          if (!isNaN(minValue) || !isNaN(maxValue)) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      // 检查是否有财报筛选条件
+      function checkHasFsFilterConditions() {
+        const fields = window.FS_FILTER_FIELDS || FS_FILTER_FIELDS || [];
 
         for (const field of fields) {
           if (!field.minId || !field.maxId) continue;
@@ -900,8 +1081,14 @@
 
             // 如果至少有一个值有效，则添加到筛选条件中
             if (!isNaN(minValue) || !isNaN(maxValue)) {
-              // 特殊处理市值字段（需要单位转换：万元转元）
-              if (field.key === "mc") {
+              // 检查label是否包含"万元"或"万"，如果包含则需要单位转换（万元转元）
+              const label = field.label || field.key;
+              const needsConversion =
+                label.includes("万元") ||
+                label.includes("万") ||
+                field.key === "mc";
+
+              if (needsConversion) {
                 metricsFilter[field.key] = [
                   !isNaN(minValue) ? minValue * 10000 : null, // 万元转元
                   !isNaN(maxValue) ? maxValue * 10000 : null,
@@ -1031,12 +1218,31 @@
           }
         });
 
+        // 获取日期信息
+        const dateInput = document.getElementById("date");
+        const fsDateInput = document.getElementById("fsDate");
+        const otherDataDate = dateInput ? dateInput.value : "";
+
+        // 获取财报日期（如果有财报筛选条件）
+        const hasFsFilterConditions = checkHasFsFilterConditions();
+        const fsDate =
+          hasFsFilterConditions && fsDateInput ? fsDateInput.value : "";
+
         // 更新显示
         if (conditions.length > 0) {
-          descriptionElement.textContent = `筛选条件：${conditions.join("，")}`;
+          let descriptionText = `筛选条件：${conditions.join("，")}`;
+
+          // 添加日期信息（总是显示两个日期）
+          const dateInfo = [];
+          dateInfo.push(`财报日期：${fsDate || "未设置"}`);
+          dateInfo.push(`其他数据日期：${otherDataDate || "未设置"}`);
+
+          descriptionText += `<br>${dateInfo.join("，")}`;
+
+          descriptionElement.innerHTML = descriptionText;
           descriptionElement.style.display = "block";
         } else {
-          descriptionElement.textContent = "";
+          descriptionElement.innerHTML = "";
           descriptionElement.style.display = "none";
         }
       }
@@ -1133,17 +1339,15 @@
             if (value !== null && value !== undefined && value !== "") {
               const numValue = parseFloat(value);
               if (!isNaN(numValue)) {
-                // 特殊处理市值字段（转换为万元）
-                if (fieldKey.includes("万元")) {
+                // 获取字段的label
+                const label = fieldMap[fieldKey] || fieldKey;
+
+                // 检查label是否包含"万元"或"万"，如果包含则转换为万元
+                if (label.includes("万元") || label.includes("万")) {
                   displayValue = (numValue / 10000).toFixed(2);
                 } else {
                   // 判断是否为百分比字段（根据字段名或配置）
-                  const isPercentage =
-                    fieldKey === "dyr" ||
-                    fieldKey.includes("%") ||
-                    fieldKey.includes("yoy") ||
-                    fieldKey.includes("ratio") ||
-                    fieldKey.includes("rate");
+                  const isPercentage = label.includes("%");
                   if (isPercentage) {
                     displayValue = (numValue * 100).toFixed(2);
                     // 百分比字段可以在这里添加 % 符号，但通常前端显示时不需要，因为表头已经说明了

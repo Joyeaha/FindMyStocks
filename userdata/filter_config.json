@@ -1,11 +1,32 @@
 {
   "data": [
     {
+      "key": "pb",
+      "label": "PB",
+      "minId": "pbMin",
+      "maxId": "pbMax",
+      "type": "fundamental"
+    },
+    {
       "key": "pe_ttm",
       "label": "PE-TTM",
       "minId": "pe_ttmMin",
       "maxId": "pe_ttmMax",
       "type": "fundamental"
+    },
+    {
+      "key": "y.m.tsc.t",
+      "label": "总股本（万元）",
+      "minId": "y.m.tsc.tMin",
+      "maxId": "y.m.tsc.tMax",
+      "type": "fs"
+    },
+    {
+      "key": "y.m.roe.t",
+      "label": "ROE",
+      "minId": "y.m.roe.tMin",
+      "maxId": "y.m.roe.tMax",
+      "type": "fs"
     }
   ]
 }

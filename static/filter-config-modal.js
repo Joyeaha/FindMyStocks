@@ -449,6 +449,30 @@
   }
 
   /**
+   * 计算向前最近的12月31日（如果今天是12月31日就取今天）
+   */
+  function getDefaultFsDate() {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-11
+    const currentDay = today.getDate();
+
+    // 如果今天是12月31日，返回今天
+    if (currentMonth === 11 && currentDay === 31) {
+      return `${currentYear}-12-31`;
+    }
+
+    // 否则返回上一个12月31日
+    // 如果当前月份是12月但日期不是31日，或者月份小于12月，返回去年的12月31日
+    if (currentMonth === 11 || currentMonth < 11) {
+      return `${currentYear - 1}-12-31`;
+    }
+
+    // 理论上不会到达这里，但为了安全返回去年的12月31日
+    return `${currentYear - 1}-12-31`;
+  }
+
+  /**
    * 测试API
    */
   async function testApi() {
@@ -485,11 +509,36 @@
     apiTestResultContent.textContent = "正在请求API...";
 
     try {
-      // 获取当前日期
-      const today = new Date();
-      const date = `${today.getFullYear()}-${String(
-        today.getMonth() + 1
-      ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      // 根据配置类型决定使用哪个日期
+      let date;
+      if (configType === "fundamental") {
+        // 基本面类型：使用弹窗外id为date的日期选择器的值，如果没有设置则使用今天
+        const dateInput = document.getElementById("date");
+        if (dateInput && dateInput.value) {
+          date = dateInput.value;
+        } else {
+          // 如果没有设置，使用今天
+          const today = new Date();
+          date = `${today.getFullYear()}-${String(
+            today.getMonth() + 1
+          ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        }
+      } else {
+        // 财报类型：使用向前最近的12月31日
+        date = getDefaultFsDate();
+      }
+
+      // 构建请求数据
+      const requestData = {
+        stockCodes: ["00700"],
+        metricsList: metricsList,
+        date: date,
+      };
+
+      // 如果是财报类型，添加财报日期参数
+      if (configType === "fs") {
+        requestData.fsDate = date;
+      }
 
       // 发送API请求
       const response = await fetch("/api/filter", {
@@ -497,11 +546,7 @@
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          stockCodes: ["00700"],
-          metricsList: metricsList,
-          date: date,
-        }),
+        body: JSON.stringify(requestData),
       });
 
       // 解析响应
