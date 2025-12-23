@@ -8,7 +8,7 @@
 
   /**
    * 计算股票评分
-   * @param {Array} stocks - 股票数据数组
+   * @param {Array} stocks - 股票数据数组（以 label 为 key）
    * @returns {Array} 包含评分信息的股票数组
    */
   function calculateRating(stocks) {
@@ -16,10 +16,27 @@
     return stocks.map((stock) => {
       let rating = 0;
 
-      // 获取数据
-      const peTtm = parseFloat(stock.pe_ttm) || 0;
-      const pb = parseFloat(stock.pb) || 0;
-      const dyr = parseFloat(stock.dyr) || 0;
+      // 尝试通过 label 获取数据，如果不存在则尝试通过 key 获取（向后兼容）
+      const getValue = (label, key) => {
+        // 先尝试通过 label 获取
+        if (stock[label] !== undefined && stock[label] !== null) {
+          return stock[label];
+        }
+        // 再尝试通过 key 获取（向后兼容）
+        if (stock[key] !== undefined && stock[key] !== null) {
+          return stock[key];
+        }
+        return null;
+      };
+
+      // 获取数据（优先使用 label，如果没有则使用 key）
+      // PE-TTM 对应的 label 可能是 "PE-TTM" 或其他
+      const peTtm = parseFloat(getValue("PE-TTM", "pe_ttm")) || 0;
+      // PB 对应的 label 可能是 "PB" 或其他
+      const pb = parseFloat(getValue("PB", "pb")) || 0;
+      // 股息率对应的 label 可能是 "股息率"、"DYR" 或其他
+      const dyr =
+        parseFloat(getValue("股息率", "dyr") || getValue("DYR", "dyr")) || 0;
 
       // 市盈率TTM评分（0-15为优秀）
       if (peTtm > 0 && peTtm <= 15) {

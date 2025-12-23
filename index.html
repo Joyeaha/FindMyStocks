@@ -794,10 +794,40 @@
             stockData = await filterStocksByMetrics(date, fsDate);
           }
 
-          console.log("获取到的股票数据:", stockData);
+          // 将股票数据转换为以 label 为 key 的形式，只包含结果中要显示的内容
+          const stocksWithLabelKeys = stockData.map((stock) => {
+            // 创建 key 到 label 的映射
+            const keyToLabelMap = {};
+            const fundamentalFields =
+              window.FILTER_FIELDS || FILTER_FIELDS || [];
+            const fsFields = window.FS_FILTER_FIELDS || FS_FILTER_FIELDS || [];
+
+            [...fundamentalFields, ...fsFields].forEach((field) => {
+              if (field.key && field.label) {
+                keyToLabelMap[field.key] = field.label;
+              }
+            });
+
+            // 创建新对象，只包含固定字段和配置的指标字段
+            const stockWithLabels = {
+              stockCode: stock.stockCode,
+              stockName: stock.stockName,
+              date: stock.date,
+            };
+
+            // 只添加配置的指标字段（转换为 label）
+            Object.keys(keyToLabelMap).forEach((key) => {
+              const label = keyToLabelMap[key];
+              if (stock[key] !== undefined && stock[key] !== null) {
+                stockWithLabels[label] = stock[key];
+              }
+            });
+
+            return stockWithLabels;
+          });
 
           // 计算评分
-          const stocksWithRating = calculateRating(stockData);
+          const stocksWithRating = calculateRating(stocksWithLabelKeys);
 
           // 显示结果
           displayResults(stocksWithRating);
@@ -874,7 +904,8 @@
         // 更新筛选条件描述
         updateFilterConditionsDescription();
 
-        // 注意：不清空筛选结果，保留当前显示的数据
+        // 清空筛选结果
+        showNoResults();
       }
 
       // 从嵌套对象中提取字段值（用于财报数据）
@@ -1346,9 +1377,16 @@
 
         // 从配置中获取所有字段（排除固定字段和date字段）
         const fixedFields = ["stockCode", "stockName", "rating", "date"];
-        const dataFields = allFields
-          .map((field) => field.key)
-          .filter((key) => key && !fixedFields.includes(key));
+        // 创建字段映射：key -> label，用于访问数据
+        const keyToLabelMap = {};
+        allFields.forEach((field) => {
+          if (field.key && field.label && !fixedFields.includes(field.key)) {
+            keyToLabelMap[field.key] = field.label;
+          }
+        });
+
+        // 使用 label 作为字段列表（因为数据已经转换为 label 格式）
+        const dataFields = Object.values(keyToLabelMap);
 
         // 创建表头
         let headerHtml = `
@@ -1361,10 +1399,9 @@
         `;
 
         // 动态添加指标列的表头
-        dataFields.forEach((fieldKey) => {
-          const label = fieldMap[fieldKey] || fieldKey;
-          // 特殊处理市值字段
-          const displayLabel = fieldKey === "mc" ? `${label}（万元）` : label;
+        dataFields.forEach((label) => {
+          // 特殊处理市值字段（通过 label 判断），如果 label 已经包含"（万元）"或"（万）"就不再添加
+          let displayLabel = label;
           headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">${displayLabel}</th>`;
         });
 
@@ -1403,18 +1440,15 @@
                         }</td>
           `;
 
-          // 动态添加指标列的数据
-          dataFields.forEach((fieldKey) => {
-            const value = stock[fieldKey];
+          // 动态添加指标列的数据（使用 label 访问数据）
+          dataFields.forEach((label) => {
+            const value = stock[label];
             let displayValue = "-";
 
             // 如果字段存在且值有效，则格式化显示
             if (value !== null && value !== undefined && value !== "") {
               const numValue = parseFloat(value);
               if (!isNaN(numValue)) {
-                // 获取字段的label
-                const label = fieldMap[fieldKey] || fieldKey;
-
                 // 检查label是否包含"万元"或"万"，如果包含则转换为万元
                 if (label.includes("万元") || label.includes("万")) {
                   displayValue = (numValue / 10000).toFixed(2);
@@ -1468,7 +1502,7 @@
       function showNoResults() {
         const container = document.getElementById("resultTable");
         container.innerHTML =
-          '<div class="text-center py-16 text-gray-500 bg-gray-50 rounded-lg"><div>暂无结果</div></div>';
+          '<div class="text-center py-8 text-sm text-gray-400 bg-gray-50 rounded-lg"><div>暂无结果</div><div class="mt-2 text-xs text-gray-400">注意检查日期是否休市，当天数据在16:30后更新</div></div>';
         document.getElementById("resultCount").textContent = "";
       }
     </script>
