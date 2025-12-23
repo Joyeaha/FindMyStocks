@@ -780,11 +780,14 @@
           } else {
             // 接口二：根据筛选条件筛选股票
             console.log("使用接口二：筛选股票");
-            // 如果有财报筛选条件，使用财报日期；否则使用基础日期
-            const fsDate = hasFsFilter
-              ? document.getElementById("fsDate").value
-              : date;
-            stockData = await filterStocksByMetrics(fsDate);
+            // 获取财报日期（如果有财报筛选条件）
+            const fsFields = window.FS_FILTER_FIELDS || FS_FILTER_FIELDS || [];
+            const fsDateInput = document.getElementById("fsDate");
+            const fsDate =
+              fsFields.length > 0 && fsDateInput && fsDateInput.value
+                ? fsDateInput.value
+                : null;
+            stockData = await filterStocksByMetrics(date, fsDate);
           }
 
           console.log("获取到的股票数据:", stockData);
@@ -1053,19 +1056,25 @@
       }
 
       // 接口二：根据筛选条件筛选股票
-      async function filterStocksByMetrics(date) {
+      async function filterStocksByMetrics(date, fsDate) {
         try {
           console.log("调用接口二：根据筛选条件筛选股票");
 
-          // 从配置中提取 metricsList
+          // 从配置中提取基本面 metricsList
           const fields = window.FILTER_FIELDS || FILTER_FIELDS || [];
           const metricsList = fields.map((field) => field.key).filter(Boolean);
 
-          if (metricsList.length === 0) {
+          // 从配置中提取财报 metricsList
+          const fsFields = window.FS_FILTER_FIELDS || FS_FILTER_FIELDS || [];
+          const fsMetricsList = fsFields
+            .map((field) => field.key)
+            .filter(Boolean);
+
+          if (metricsList.length === 0 && fsMetricsList.length === 0) {
             throw new Error("没有配置筛选项，请先配置筛选项");
           }
 
-          // 构建 metricsFilter 对象（动态从配置中读取）
+          // 构建基本面 metricsFilter 对象（动态从配置中读取）
           const metricsFilter = {};
 
           fields.forEach((field) => {
@@ -1102,8 +1111,48 @@
             }
           });
 
+          // 构建财报 metricsFilter 对象（动态从配置中读取）
+          const fsMetricsFilter = {};
+
+          fsFields.forEach((field) => {
+            if (!field.key || !field.minId || !field.maxId) return;
+
+            const minInput = document.getElementById(field.minId);
+            const maxInput = document.getElementById(field.maxId);
+
+            if (!minInput || !maxInput) return;
+
+            const minValue = parseFloat(minInput.value);
+            const maxValue = parseFloat(maxInput.value);
+
+            // 如果至少有一个值有效，则添加到筛选条件中
+            if (!isNaN(minValue) || !isNaN(maxValue)) {
+              // 检查label是否包含"万元"或"万"，如果包含则需要单位转换（万元转元）
+              const label = field.label || field.key;
+              const needsConversion =
+                label.includes("万元") ||
+                label.includes("万") ||
+                field.key === "mc";
+
+              if (needsConversion) {
+                fsMetricsFilter[field.key] = [
+                  !isNaN(minValue) ? minValue * 10000 : null, // 万元转元
+                  !isNaN(maxValue) ? maxValue * 10000 : null,
+                ];
+              } else {
+                fsMetricsFilter[field.key] = [
+                  !isNaN(minValue) ? minValue : null,
+                  !isNaN(maxValue) ? maxValue : null,
+                ];
+              }
+            }
+          });
+
           // 检查是否有筛选条件（这个检查已经在调用前完成，这里只作为防御性检查）
-          if (Object.keys(metricsFilter).length === 0) {
+          if (
+            Object.keys(metricsFilter).length === 0 &&
+            Object.keys(fsMetricsFilter).length === 0
+          ) {
             throw new Error("缺少筛选条件");
           }
 
@@ -1112,6 +1161,18 @@
             metricsList: metricsList,
             date: date,
           };
+
+          // 如果有财报筛选项配置，添加到请求中（即使没有填写筛选值）
+          if (fsMetricsList.length > 0) {
+            requestData.fsMetricsList = fsMetricsList;
+            if (fsDate) {
+              requestData.fsDate = fsDate;
+            }
+            // 如果有财报筛选条件，也添加到请求中
+            if (Object.keys(fsMetricsFilter).length > 0) {
+              requestData.fsMetricsFilter = fsMetricsFilter;
+            }
+          }
 
           console.log("发送筛选请求:", requestData);
 
@@ -1133,8 +1194,16 @@
           const result = await response.json();
           console.log("接口二返回的数据:", result);
 
+          // 处理财报数据的嵌套字段提取
+          let stockData = result.data || [];
+          if (stockData.length > 0 && fsMetricsList.length > 0) {
+            stockData = stockData.map((stock) => {
+              return processFsData(stock, fsFields);
+            });
+          }
+
           // 返回筛选后的股票数据
-          return result.data || [];
+          return stockData;
         } catch (error) {
           console.error("筛选股票失败:", error);
           throw error;

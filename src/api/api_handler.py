@@ -16,6 +16,62 @@ from . import stock_filter
 from . import filter_config
 from ..utils import log_message, get_current_date, send_error_response, send_json_response
 
+
+def extract_nested_field_value(obj: Dict[str, Any], field_key: str) -> Any:
+    """
+    从嵌套对象中提取字段值
+    
+    例如：字段 "y.m.roe.t" 从 {y: {m: {roe: {t: 0.2038}}}} 中提取 0.2038
+    
+    Args:
+        obj: 嵌套对象
+        field_key: 字段key，使用点号分隔，如 "y.m.roe.t"
+    
+    Returns:
+        字段值，如果不存在则返回 None
+    """
+    if not obj or not field_key:
+        return None
+    
+    keys = field_key.split('.')
+    value = obj
+    
+    for key in keys:
+        if value and isinstance(value, dict) and key in value:
+            value = value[key]
+        else:
+            return None
+    
+    return value
+
+
+def process_fs_data(fs_data: Dict[str, Any], fs_metrics_list: list) -> Dict[str, Any]:
+    """
+    处理财报数据，提取嵌套字段值到顶层
+    
+    Args:
+        fs_data: 财报数据对象
+        fs_metrics_list: 财报指标列表
+    
+    Returns:
+        处理后的数据对象，包含原始数据和提取的字段值
+    """
+    if not fs_data or not fs_metrics_list:
+        return fs_data
+    
+    # 创建新对象，包含原始数据和提取的字段值
+    processed_data = fs_data.copy()
+    
+    # 提取每个字段的值
+    for field_key in fs_metrics_list:
+        if not field_key:
+            continue
+        value = extract_nested_field_value(fs_data, field_key)
+        if value is not None:
+            processed_data[field_key] = value
+    
+    return processed_data
+
 if TYPE_CHECKING:
     from http.server import BaseHTTPRequestHandler
 
@@ -311,19 +367,24 @@ class StockAPIHandler:
         return result
     
     @staticmethod
-    def filter_stocks_by_metrics(metrics_filter: Dict[str, list], date: str, metrics_list: Optional[list] = None) -> Dict[str, Any]:
+    def filter_stocks_by_metrics(metrics_filter: Dict[str, list], date: str, metrics_list: Optional[list] = None, 
+                                  fs_metrics_filter: Optional[Dict[str, list]] = None, fs_date: Optional[str] = None,
+                                  fs_metrics_list: Optional[list] = None) -> Dict[str, Any]:
         """
-        功能：根据基本面条件筛选股票
+        功能：根据基本面条件和财报条件筛选股票
         
         Args:
-            metrics_filter: 筛选条件字典，格式为 {指标名: [min, max]}
-            date: 日期字符串
-            metrics_list: 指标列表（可选），如果提供则使用此列表获取数据，否则从 metrics_filter 的 keys 中提取
+            metrics_filter: 基本面筛选条件字典，格式为 {指标名: [min, max]}
+            date: 日期字符串（用于基本面数据）
+            metrics_list: 基本面指标列表（可选），如果提供则使用此列表获取数据，否则从 metrics_filter 的 keys 中提取
+            fs_metrics_filter: 财报筛选条件字典，格式为 {指标名: [min, max]}
+            fs_date: 财报日期字符串（用于财报数据）
+            fs_metrics_list: 财报指标列表（可选），如果提供则使用此列表获取数据，否则从 fs_metrics_filter 的 keys 中提取
         
         Returns:
             包含筛选后股票数据的字典
         """
-        log_message(f"接口二：筛选股票 - 筛选条件={metrics_filter}, 日期={date}")
+        log_message(f"接口二：筛选股票 - 基本面筛选条件={metrics_filter}, 日期={date}, 财报筛选条件={fs_metrics_filter}, 财报日期={fs_date}")
         
         # 获取所有股票代码
         stock_codes = StockAPIHandler._get_stock_codes()
@@ -333,42 +394,124 @@ class StockAPIHandler:
         # 获取股票代码到名称的映射
         stock_name_mapping = StockAPIHandler._get_stock_name_mapping()
         
-        # 确定需要的指标列表（优先使用传入的 metrics_list，否则从筛选条件中提取）
-        if metrics_list and isinstance(metrics_list, list) and len(metrics_list) > 0:
-            required_metrics = metrics_list
-            log_message(f"使用传入的 metricsList: {required_metrics}")
-        else:
-            required_metrics = list(metrics_filter.keys())
-            log_message(f"从 metricsFilter 中提取指标列表: {required_metrics}")
+        stocks_data = []
         
-        if not required_metrics:
-            raise ValueError("metricsFilter 不能为空，且 metricsList 未提供")
+        # 处理基本面数据（如果有筛选条件或指标列表）
+        has_fundamental_filter = metrics_filter and len(metrics_filter) > 0
+        has_fundamental_metrics = metrics_list and isinstance(metrics_list, list) and len(metrics_list) > 0
         
-        # 获取所有股票的基本面数据（优先使用缓存）
-        cached_data = data_cache.get_cache(date, required_metrics, config.FUNDAMENTAL_CACHE_FILE)
-        
-        if cached_data:
-            log_message(f"使用缓存的基本面数据进行筛选，日期: {date}, 指标: {required_metrics}")
-            stocks_data = cached_data.get('data', [])
-        else:
-            # 批量获取基本面数据
-            log_message(f"缓存未命中，批量获取基本面数据，日期: {date}, 指标: {required_metrics}")
-            fundamental_data = data_fetcher.batch_fetch_data(
-                stock_codes,
-                date,
-                required_metrics,
-                config.HK_FUNDAMENTAL_URL
-            )
-            stocks_data = fundamental_data.get('data', [])
+        if has_fundamental_filter or has_fundamental_metrics:
+            # 确定需要的指标列表（优先使用传入的 metrics_list，否则从筛选条件中提取）
+            if metrics_list and isinstance(metrics_list, list) and len(metrics_list) > 0:
+                required_metrics = metrics_list
+                log_message(f"使用传入的基本面 metricsList: {required_metrics}")
+            else:
+                required_metrics = list(metrics_filter.keys())
+                log_message(f"从基本面 metricsFilter 中提取指标列表: {required_metrics}")
             
-            # 如果数据量大于0才保存到缓存
-            total = fundamental_data.get('total', 0)
-            if total > 0:
-                data_cache.save_cache(date, fundamental_data, required_metrics, config.FUNDAMENTAL_CACHE_FILE, config.FUNDAMENTAL_CACHE_EXPIRE_DAYS)
-                log_message(f"基本面数据已获取并缓存完成，数据量: {total}")
+            if not required_metrics:
+                raise ValueError("基本面 metricsFilter 不能为空，且 metricsList 未提供")
+            
+            # 获取所有股票的基本面数据（优先使用缓存）
+            cached_data = data_cache.get_cache(date, required_metrics, config.FUNDAMENTAL_CACHE_FILE)
+            
+            if cached_data:
+                log_message(f"使用缓存的基本面数据进行筛选，日期: {date}, 指标: {required_metrics}")
+                stocks_data = cached_data.get('data', [])
+            else:
+                # 批量获取基本面数据
+                log_message(f"缓存未命中，批量获取基本面数据，日期: {date}, 指标: {required_metrics}")
+                fundamental_data = data_fetcher.batch_fetch_data(
+                    stock_codes,
+                    date,
+                    required_metrics,
+                    config.HK_FUNDAMENTAL_URL
+                )
+                stocks_data = fundamental_data.get('data', [])
+                
+                # 如果数据量大于0才保存到缓存
+                total = fundamental_data.get('total', 0)
+                if total > 0:
+                    data_cache.save_cache(date, fundamental_data, required_metrics, config.FUNDAMENTAL_CACHE_FILE, config.FUNDAMENTAL_CACHE_EXPIRE_DAYS)
+                    log_message(f"基本面数据已获取并缓存完成，数据量: {total}")
         
-        # 根据 metricsFilter 筛选股票
-        filtered_stocks = stock_filter.filter_stocks_by_metrics(stocks_data, metrics_filter)
+        # 处理财报数据（如果有指标列表，就获取数据，即使没有筛选条件）
+        fs_stocks_data = []
+        has_fs_metrics = fs_metrics_list and isinstance(fs_metrics_list, list) and len(fs_metrics_list) > 0
+        
+        if has_fs_metrics:
+            if not fs_date:
+                raise ValueError("财报指标列表存在时，必须提供财报日期 fs_date")
+            
+            # 使用传入的 fs_metrics_list
+            required_fs_metrics = fs_metrics_list
+            log_message(f"使用传入的财报 metricsList: {required_fs_metrics}")
+            
+            # 获取所有股票的财报数据（优先使用缓存）
+            cached_fs_data = data_cache.get_cache(fs_date, required_fs_metrics, config.FS_CACHE_FILE)
+            
+            if cached_fs_data:
+                log_message(f"使用缓存的财报数据进行筛选，日期: {fs_date}, 指标: {required_fs_metrics}")
+                fs_stocks_data = cached_fs_data.get('data', [])
+            else:
+                # 批量获取财报数据
+                log_message(f"缓存未命中，批量获取财报数据，日期: {fs_date}, 指标: {required_fs_metrics}")
+                fs_data = data_fetcher.batch_fetch_data(
+                    stock_codes,
+                    fs_date,
+                    required_fs_metrics,
+                    config.HK_FS_URL
+                )
+                fs_stocks_data = fs_data.get('data', [])
+                
+                # 如果数据量大于0才保存到缓存
+                total = fs_data.get('total', 0)
+                if total > 0:
+                    data_cache.save_cache(fs_date, fs_data, required_fs_metrics, config.FS_CACHE_FILE, config.FS_CACHE_EXPIRE_DAYS)
+                    log_message(f"财报数据已获取并缓存完成，数据量: {total}")
+        
+        # 处理财报数据的嵌套字段提取（在合并前处理）
+        if fs_stocks_data and fs_metrics_list and isinstance(fs_metrics_list, list) and len(fs_metrics_list) > 0:
+            # 处理每个股票的财报数据，提取嵌套字段值
+            fs_stocks_data = [
+                process_fs_data(stock, fs_metrics_list)
+                for stock in fs_stocks_data
+            ]
+        
+        # 合并基本面和财报数据
+        if stocks_data and fs_stocks_data:
+            # 按股票代码合并数据
+            fs_data_map = {stock.get('stockCode'): stock for stock in fs_stocks_data}
+            merged_data = []
+            for stock in stocks_data:
+                stock_code = stock.get('stockCode')
+                if stock_code in fs_data_map:
+                    # 合并财报数据到基本面数据
+                    merged_stock = {**stock, **fs_data_map[stock_code]}
+                    merged_data.append(merged_stock)
+                else:
+                    merged_data.append(stock)
+            stocks_data = merged_data
+        elif fs_stocks_data:
+            # 如果只有财报数据
+            stocks_data = fs_stocks_data
+        
+        if not stocks_data:
+            raise ValueError("没有获取到任何股票数据")
+        
+        # 合并筛选条件
+        combined_filter = {}
+        if metrics_filter and len(metrics_filter) > 0:
+            combined_filter.update(metrics_filter)
+        if fs_metrics_filter and len(fs_metrics_filter) > 0:
+            combined_filter.update(fs_metrics_filter)
+        
+        # 如果没有筛选条件，返回所有数据
+        if not combined_filter:
+            filtered_stocks = stocks_data
+        else:
+            # 根据合并后的筛选条件筛选股票
+            filtered_stocks = stock_filter.filter_stocks_by_metrics(stocks_data, combined_filter)
         
         # 为每个股票添加 stockName 字段
         for stock in filtered_stocks:
@@ -378,12 +521,12 @@ class StockAPIHandler:
             elif not stock.get('stockName'):
                 stock['stockName'] = stock_code or ''
         
-            log_message(f"筛选完成，原始数据量: {len(stocks_data)}, 筛选后数据量: {len(filtered_stocks)}")
-            
-            return {
-                "total": len(filtered_stocks),
-                "data": filtered_stocks
-            }
+        log_message(f"筛选完成，原始数据量: {len(stocks_data)}, 筛选后数据量: {len(filtered_stocks)}")
+        
+        return {
+            "total": len(filtered_stocks),
+            "data": filtered_stocks
+        }
     @staticmethod
     def handle_post(request_params: Dict[str, Any], request_handler: 'BaseHTTPRequestHandler') -> bool:
         """
@@ -466,7 +609,25 @@ class StockAPIHandler:
                 
                 date = request_params.get('date', get_current_date())
                 metrics_list = request_params.get('metricsList')  # 可选的指标列表
-                result = StockAPIHandler.filter_stocks_by_metrics(metrics_filter, date, metrics_list)
+                
+                # 财报筛选条件（可选）
+                fs_metrics_filter = request_params.get('fsMetricsFilter')
+                fs_date = request_params.get('fsDate')
+                fs_metrics_list = request_params.get('fsMetricsList')
+                
+                # 验证财报筛选条件格式
+                if fs_metrics_filter is not None:
+                    if not isinstance(fs_metrics_filter, dict):
+                        send_error_response(400, "fsMetricsFilter 必须是对象", request_handler)
+                        return True
+                    if fs_metrics_filter and not fs_date:
+                        send_error_response(400, "财报筛选条件存在时，必须提供财报日期 fsDate", request_handler)
+                        return True
+                
+                result = StockAPIHandler.filter_stocks_by_metrics(
+                    metrics_filter, date, metrics_list,
+                    fs_metrics_filter, fs_date, fs_metrics_list
+                )
                 send_json_response(result, request_handler)
                 return True
             

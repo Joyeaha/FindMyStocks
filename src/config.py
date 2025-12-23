@@ -26,12 +26,14 @@ HK_FS_URL = 'https://open.lixinger.com/api/hk/company/fs/non_financial'
 # 缓存文件路径
 HK_STOCKS_CACHE_FILE = os.path.join(CACHE_DIR, 'hk_stocks_cache.json')
 FUNDAMENTAL_CACHE_FILE = os.path.join(CACHE_DIR, 'fundamental_cache.json')
+FS_CACHE_FILE = os.path.join(CACHE_DIR, 'fs_cache.json')
 
 # 用户数据文件路径
 FILTER_CONFIG_FILE = os.path.join(USERDATA_DIR, 'filter_config.json')
 
 # 缓存配置
 FUNDAMENTAL_CACHE_EXPIRE_DAYS = 3
+FS_CACHE_EXPIRE_DAYS = 3
 
 # API 请求配置
 MAX_RETRIES = 5
