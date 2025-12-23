@@ -592,6 +592,11 @@
       // 监听指标配置更新事件（在 DOMContentLoaded 之前注册，确保能捕获事件）
       function handleFilterConfigUpdated(event) {
         console.log("指标配置已更新，重新初始化筛选控件", event);
+
+        // 重置排序状态
+        currentSortColumn = null;
+        currentSortDirection = "asc";
+
         // 更新全局 FILTER_FIELDS 变量
         if (event.detail && event.detail.config) {
           const configType = event.detail.type || "fundamental";
@@ -722,6 +727,10 @@
       // 筛选按钮点击事件
       async function handleFilter() {
         console.log("筛选按钮被点击");
+
+        // 重置排序状态
+        currentSortColumn = null;
+        currentSortDirection = "asc";
 
         // 检查是否正在请求中
         if (isRequesting) {
@@ -903,6 +912,10 @@
 
         // 更新筛选条件描述
         updateFilterConditionsDescription();
+
+        // 清除排序状态
+        currentSortColumn = null;
+        currentSortDirection = "asc";
 
         // 清空筛选结果
         showNoResults();
@@ -1351,10 +1364,97 @@
         }
       }
 
+      // 排序状态
+      let currentSortColumn = null;
+      let currentSortDirection = "asc"; // 'asc' 或 'desc'
+
+      // 排序函数
+      function sortStocks(stocks, column, direction) {
+        if (!column) return stocks;
+
+        return [...stocks].sort((a, b) => {
+          const aValue = a[column];
+          const bValue = b[column];
+
+          // 处理 null/undefined
+          if (aValue === null || aValue === undefined || aValue === "") {
+            return direction === "asc" ? 1 : -1;
+          }
+          if (bValue === null || bValue === undefined || bValue === "") {
+            return direction === "asc" ? -1 : 1;
+          }
+
+          // 尝试转换为数字
+          const aNum = parseFloat(aValue);
+          const bNum = parseFloat(bValue);
+
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            // 数字比较
+            return direction === "asc" ? aNum - bNum : bNum - aNum;
+          } else {
+            // 字符串比较
+            const aStr = String(aValue);
+            const bStr = String(bValue);
+            if (direction === "asc") {
+              return aStr.localeCompare(bStr);
+            } else {
+              return bStr.localeCompare(aStr);
+            }
+          }
+        });
+      }
+
+      // 处理表头点击排序（暴露到全局作用域）
+      window.handleSortClick = function (column) {
+        if (currentSortColumn === column) {
+          // 切换排序方向
+          currentSortDirection =
+            currentSortDirection === "asc" ? "desc" : "asc";
+        } else {
+          // 新的排序列，默认升序
+          currentSortColumn = column;
+          currentSortDirection = "asc";
+        }
+
+        // 重新获取原始数据并排序显示
+        const container = document.getElementById("resultTable");
+        const stocksData = container.dataset.stocksData
+          ? JSON.parse(container.dataset.stocksData)
+          : [];
+        if (stocksData.length > 0) {
+          // 临时清除排序状态，避免displayResults中再次排序
+          const savedSortColumn = currentSortColumn;
+          const savedSortDirection = currentSortDirection;
+          currentSortColumn = null;
+
+          // 排序数据
+          const sortedStocks = sortStocks(
+            stocksData,
+            savedSortColumn,
+            savedSortDirection
+          );
+
+          // 恢复排序状态
+          currentSortColumn = savedSortColumn;
+          currentSortDirection = savedSortDirection;
+
+          // 显示结果（跳过排序，因为数据已经排序）
+          displayResults(sortedStocks, true);
+        }
+      };
+
       // 显示结果
-      function displayResults(stocks) {
+      function displayResults(stocks, skipSort = false) {
         const container = document.getElementById("resultTable");
         const countElement = document.getElementById("resultCount");
+
+        // 保存原始数据到dataset，用于排序
+        container.dataset.stocksData = JSON.stringify(stocks);
+
+        // 如果有排序列且未跳过排序，先排序
+        if (!skipSort && currentSortColumn) {
+          stocks = sortStocks(stocks, currentSortColumn, currentSortDirection);
+        }
 
         countElement.textContent = `共 ${stocks.length} 条结果`;
 
@@ -1394,19 +1494,49 @@
                   <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-700">
                       <tr>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票名称</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票代码</th>
         `;
 
-        // 动态添加指标列的表头
+        // 股票名称列（不可排序）
+        headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票名称</th>`;
+
+        // 股票代码列（不可排序）
+        headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">股票代码</th>`;
+
+        // 动态添加指标列的表头（可排序）
         dataFields.forEach((label) => {
           // 特殊处理市值字段（通过 label 判断），如果 label 已经包含"（万元）"或"（万）"就不再添加
           let displayLabel = label;
-          headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">${displayLabel}</th>`;
+
+          // 判断当前列是否为排序列
+          const isSortColumn = currentSortColumn === label;
+          const sortIcon = isSortColumn
+            ? currentSortDirection === "asc"
+              ? '<svg class="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>'
+              : '<svg class="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>'
+            : '<svg class="w-4 h-4 inline-block ml-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>';
+
+          headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-gray-600 select-none" onclick="handleSortClick('${label}')">
+            <span class="flex items-center">
+              ${displayLabel}
+              ${sortIcon}
+            </span>
+          </th>`;
         });
 
-        // 添加评分列
-        headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">评分</th>`;
+        // 添加评分列（可排序）
+        const isRatingSortColumn = currentSortColumn === "rating";
+        const ratingSortIcon = isRatingSortColumn
+          ? currentSortDirection === "asc"
+            ? '<svg class="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>'
+            : '<svg class="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>'
+          : '<svg class="w-4 h-4 inline-block ml-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>';
+
+        headerHtml += `<th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer hover:bg-gray-600 select-none" onclick="handleSortClick('rating')">
+          <span class="flex items-center">
+            评分
+            ${ratingSortIcon}
+          </span>
+        </th>`;
         headerHtml += `</tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
 
         // 添加数据行
